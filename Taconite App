@@ -1,0 +1,71 @@
+# TACONITE APP
+
+# Status: only login screen
+
+# 1. Load Assemblies
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# 2. Create Form
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'Login'
+$form.Size = New-Object System.Drawing.Size(300,200)
+$form.StartPosition = 'CenterScreen'
+
+# 3. Create Username Label and TextBox
+$labelUsername = New-Object System.Windows.Forms.Label
+$labelUsername.Location = New-Object System.Drawing.Point(10,20)
+$labelUsername.Size = New-Object System.Drawing.Size(280,20)
+$labelUsername.Text = 'Username:'
+$form.Controls.Add($labelUsername)
+
+$textBoxUsername = New-Object System.Windows.Forms.TextBox
+$textBoxUsername.Location = New-Object System.Drawing.Point(10,40)
+$textBoxUsername.Size = New-Object System.Drawing.Size(260,20)
+$form.Controls.Add($textBoxUsername)
+
+# 4. Create Password Label and TextBox
+$labelPassword = New-Object System.Windows.Forms.Label
+$labelPassword.Location = New-Object System.Drawing.Point(10,70)
+$labelPassword.Size = New-Object System.Drawing.Size(280,20)
+$labelPassword.Text = 'Password:'
+$form.Controls.Add($labelPassword)
+
+$textBoxPassword = New-Object System.Windows.Forms.TextBox
+$textBoxPassword.Location = New-Object System.Drawing.Point(10,90)
+$textBoxPassword.Size = New-Object System.Drawing.Size(260,20)
+$textBoxPassword.PasswordChar = '*'
+$form.Controls.Add($textBoxPassword)
+
+# 5. Create Login Button
+$loginButton = New-Object System.Windows.Forms.Button
+$loginButton.Location = New-Object System.Drawing.Point(75,120)
+$loginButton.Size = New-Object System.Drawing.Size(75,23)
+$loginButton.Text = 'Login'
+$loginButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+$form.AcceptButton = $loginButton
+$form.Controls.Add($loginButton)
+
+# 6. Create Cancel Button
+$cancelButton = New-Object System.Windows.Forms.Button
+$cancelButton.Location = New-Object System.Drawing.Point(150,120)
+$cancelButton.Size = New-Object System.Drawing.Size(75,23)
+$cancelButton.Text = 'Cancel'
+$cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+$form.CancelButton = $cancelButton
+$form.Controls.Add($cancelButton)
+
+
+# 7. Set Focus on Username TextBox
+$form.Add_Shown({$textBoxUsername.Select()})
+
+# 8. Show the form and get the result
+$result = $form.ShowDialog()
+
+if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+    $username = $textBoxUsername.Text
+    $password = $textBoxPassword.Text
+    # In a real application, you would validate the credentials here
+    Write-Host "Username: $username"
+    Write-Host "Password: $password"
+}
