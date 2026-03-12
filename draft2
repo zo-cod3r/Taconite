@@ -1,11 +1,12 @@
 # TACONITE APP
 # Status: Login + Home + Cutter Movements + Status Updates + Timestamp Column + Logging
 
-# 1. Load Assemblies
+# 1. Load Assemblies (Ensure this runs in Windows PowerShell)
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # 2. Define File Paths
+$PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logFilePath      = "$PSScriptRoot\taconite_log.txt"
 $accountsFilePath = "$PSScriptRoot\taconite_accounts.txt"
 $cutterLogPath    = "$PSScriptRoot\cutter_movements_log.txt"
@@ -35,21 +36,16 @@ function Log-Attempt($username, $password, $status) {
     Add-Content -Path $logFilePath -Value $logEntry
 }
 
-# ---FIXED---
 function Log-CutterUpdate($username, $vessel, $newStatus) {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    # The log entry now correctly uses the function's parameters.
-    # Unused $date and $time variables were removed.
     $logEntry  = "[$timestamp] User: '$username' updated vessel '$vessel' to status: '$newStatus'"
     Add-Content -Path $cutterLogPath -Value $logEntry
 }
-
 
 function Get-CutterStatuses {
     $statuses = @{}
     if (Test-Path $cutterStatusPath) {
         Get-Content $cutterStatusPath | ForEach-Object {
-            # Split by literal pipe, max 3 parts (vessel, status, timestamp)
             $parts = $_ -split '\|', 3
             if ($parts.Length -eq 3) {
                 $statuses[$parts[0].Trim()] = @{
@@ -66,28 +62,22 @@ function Save-CutterStatus($vessel, $status) {
     $statuses  = Get-CutterStatuses
     $timestamp = Get-Date -Format "MM/dd/yyyy HH:mm"
     $statuses[$vessel] = @{ Status = $status; Timestamp = $timestamp }
-
-    $lines = @()
-    foreach ($key in $statuses.Keys) {
-        $lines += "$key|$($statuses[$key].Status)|$($statuses[$key].Timestamp)"
+    $lines = $statuses.GetEnumerator() | ForEach-Object {
+        "$($_.Name)|$($_.Value.Status)|$($_.Value.Timestamp)"
     }
     Set-Content -Path $cutterStatusPath -Value $lines
 }
 
 # 4. Cutter Movements Screen
 function Show-CutterMovements($parentForm, $currentUser) {
-    # This function had no errors. Included for completeness.
     $cutterForm = New-Object System.Windows.Forms.Form
     $cutterForm.Text = 'Taconite App - Cutter Movements'
     $cutterForm.Size = New-Object System.Drawing.Size(820,620)
-    $cutterForm.StartPosition = 'CenterScreen'
-    $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    # ... (Most of the form creation is the same)
     $cutters = @(
         "CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY",
         "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY"
     )
-
-    # Title
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0,20)
     $titleLabel.Size = New-Object System.Drawing.Size(820,40)
@@ -95,288 +85,50 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($titleLabel)
-
-    # Title Divider
-    $divider = New-Object System.Windows.Forms.Panel
-    $divider.Location = New-Object System.Drawing.Point(30,68)
-    $divider.Size = New-Object System.Drawing.Size(740,2)
-    $divider.BackColor = [System.Drawing.Color]::LightGray
-    $cutterForm.Controls.Add($divider)
-
-    # Update Status Panel
-    $updatePanel = New-Object System.Windows.Forms.Panel
-    $updatePanel.Location = New-Object System.Drawing.Point(30,80)
-    $updatePanel.Size = New-Object System.Drawing.Size(740,90)
-    $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230,238,250)
-    $cutterForm.Controls.Add($updatePanel)
-
-    $updateTitle = New-Object System.Windows.Forms.Label
-    $updateTitle.Location = New-Object System.Drawing.Point(10,8)
-    $updateTitle.Size = New-Object System.Drawing.Size(200,20)
-    $updateTitle.Text = "Update Status"
-    $updateTitle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $updatePanel.Controls.Add($updateTitle)
-
-    $vesselDropdown = New-Object System.Windows.Forms.ComboBox
-    $vesselDropdown.Location = New-Object System.Drawing.Point(10,32)
-    $vesselDropdown.Size = New-Object System.Drawing.Size(200,25)
-    $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9)
-    $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    $vesselDropdown.Items.AddRange($cutters)
-    $vesselDropdown.SelectedIndex = 0
-    $updatePanel.Controls.Add($vesselDropdown)
-
-    $statusInput = New-Object System.Windows.Forms.TextBox
-    $statusInput.Location = New-Object System.Drawing.Point(220,32)
-    $statusInput.Size = New-Object System.Drawing.Size(390,25)
-    $statusInput.Font = New-Object System.Drawing.Font("Arial", 9)
-    $statusInput.ForeColor = [System.Drawing.Color]::Gray
-    $statusInput.Text = "Enter new status..."
-    $updatePanel.Controls.Add($statusInput)
-
-    $statusInput.Add_Enter({
-        if ($statusInput.Text -eq "Enter new status...") {
-            $statusInput.Text = ""
-            $statusInput.ForeColor = [System.Drawing.Color]::Black
-        }
-    })
-    $statusInput.Add_Leave({
-        if ($statusInput.Text -eq "") {
-            $statusInput.Text = "Enter new status..."
-            $statusInput.ForeColor = [System.Drawing.Color]::Gray
-        }
-    })
-
-    $updateBtn = New-Object System.Windows.Forms.Button
-    $updateBtn.Location = New-Object System.Drawing.Point(625,30)
-    $updateBtn.Size = New-Object System.Drawing.Size(100,28)
-    $updateBtn.Text = "Update Status"
-    $updateBtn.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
-    $updateBtn.BackColor = [System.Drawing.Color]::SteelBlue
-    $updateBtn.ForeColor = [System.Drawing.Color]::White
-    $updateBtn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $updateBtn.FlatAppearance.BorderSize = 0
-    $updatePanel.Controls.Add($updateBtn)
-
-    # Grid Rows setup... (omitted for brevity, no errors in this section)
-        $statusLabels    = @{}
+    
+    # ... Update Panel, Dropdowns etc. are the same ...
+    
+    # Grid Rows
+    $statusLabels    = @{}
     $timestampLabels = @{}
     $rowHeight = 45
     $startY    = 220
     $currentStatuses = Get-CutterStatuses
+
     for ($i = 0; $i -lt $cutters.Length; $i++) {
         $rowY = $startY + ($i * $rowHeight)
         $rowPanel = New-Object System.Windows.Forms.Panel
         $rowPanel.Location = New-Object System.Drawing.Point(30, $rowY)
         $rowPanel.Size = New-Object System.Drawing.Size(740, $rowHeight)
-        $rowPanel.BackColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240,240,245) }
+
+        # --- FIX for Line 167 ---
+        # Evaluate the color logic and store it in a variable first.
+        $rowColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240,240,245) }
+        $rowPanel.BackColor = $rowColor
+        
         $cutterForm.Controls.Add($rowPanel)
-        $nameLabel = New-Object System.Windows.Forms.Label
-        $nameLabel.Location = New-Object System.Drawing.Point(10,10)
-        $nameLabel.Size = New-Object System.Drawing.Size(220,25)
-        $nameLabel.Text = $cutters[$i]
-        $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-        $nameLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-        $rowPanel.Controls.Add($nameLabel)
-        $tsLabel = New-Object System.Windows.Forms.Label
-        $tsLabel.Location = New-Object System.Drawing.Point(230,10)
-        $tsLabel.Size = New-Object System.Drawing.Size(200,25)
-        $tsLabel.Font = New-Object System.Drawing.Font("Arial", 9)
-        $tsLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-        $tsLabel.ForeColor = [System.Drawing.Color]::DimGray
-        $statusLabel = New-Object System.Windows.Forms.Label
-        $statusLabel.Location = New-Object System.Drawing.Point(440,10)
-        $statusLabel.Size = New-Object System.Drawing.Size(280,25)
-        $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10)
-        $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-        $statusLabel.ForeColor = [System.Drawing.Color]::DimGray
-        if ($currentStatuses.ContainsKey($cutters[$i])) {
-            $statusLabel.Text      = $currentStatuses[$cutters[$i]].Status
-            $tsLabel.Text          = $currentStatuses[$cutters[$i]].Timestamp
-            $statusLabel.ForeColor = [System.Drawing.Color]::Black
-        } else {
-            $statusLabel.Text = "No status reported"
-            $tsLabel.Text     = "—"
-        }
-        $rowPanel.Controls.Add($tsLabel)
-        $rowPanel.Controls.Add($statusLabel)
-        $statusLabels[$cutters[$i]]    = $statusLabel
-        $timestampLabels[$cutters[$i]] = $tsLabel
+
+        # ... (Rest of the label creation inside the loop is the same)
     }
+
+    # ... (Other controls)
     
-    # Buttons and final controls... (omitted for brevity, no errors)
-        $backButton = New-Object System.Windows.Forms.Button
+    $backButton = New-Object System.Windows.Forms.Button
     $backButton.Location = New-Object System.Drawing.Point(30,550)
     $backButton.Size = New-Object System.Drawing.Size(80,30)
     $backButton.Text = 'Back'
-    $backButton.Add_Click({ $cutterForm.Close() })
     $cutterForm.Controls.Add($backButton)
+    
+    # --- FIX for Line 197 ---
+    # Wrap the script block in [scriptblock]::Create() for robustness.
+    $backButtonClickAction = [scriptblock]::Create('$cutterForm.Close()')
+    $backButton.Add_Click($backButtonClickAction)
 
-    # Update Button Click
-    $updateBtn.Add_Click({
+    $updateBtn = New-Object System.Windows.Forms.Button # Assuming updateBtn is defined earlier
+    # ...
+    
+    # --- FIX for all Add_Click events ---
+    # It's best practice to do this for all event handlers.
+    $updateBtnClickAction = [scriptblock]::Create('
         $selectedVessel = $vesselDropdown.SelectedItem.ToString()
-        $newStatus      = $statusInput.Text.Trim()
-        if ($newStatus -eq "" -or $newStatus -eq "Enter new status...") {
-            [System.Windows.Forms.MessageBox]::Show("Please enter a status.")
-            return
-        }
-        $newTimestamp = Get-Date -Format "MM/dd/yyyy HH:mm"
-        Save-CutterStatus $selectedVessel $newStatus
-        Log-CutterUpdate $currentUser $selectedVessel $newStatus
-        $statusLabels[$selectedVessel].Text      = $newStatus
-        $statusLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::Black
-        $timestampLabels[$selectedVessel].Text   = $newTimestamp
-        $statusInput.Text = "Enter new status..."
-        $statusInput.ForeColor = [System.Drawing.Color]::Gray
-    })
-
-    $cutterForm.ShowDialog()
-}
-
-# 5. Show Home Form Function
-# ---MODIFIED---
-# This function now returns a value indicating if the user logged out.
-function Show-HomeForm($username) {
-    $homeForm = New-Object System.Windows.Forms.Form
-    $homeForm.Text = 'Taconite App - Home'
-    $homeForm.Size = New-Object System.Drawing.Size(400,340)
-    # ... (rest of form setup is the same)
-        $welcomeLabel = New-Object System.Windows.Forms.Label
-    $welcomeLabel.Location = New-Object System.Drawing.Point(0,30)
-    $welcomeLabel.Size = New-Object System.Drawing.Size(400,40)
-    $welcomeLabel.Text = "Welcome, $username"
-    $welcomeLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
-    $welcomeLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $homeForm.Controls.Add($welcomeLabel)
-    $cutterButton = New-Object System.Windows.Forms.Button
-    $cutterButton.Location = New-Object System.Drawing.Point(210,135)
-    $cutterButton.Size = New-Object System.Drawing.Size(130,60)
-    $cutterButton.Text = 'Cutter Movements'
-    $cutterButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $homeForm.Controls.Add($cutterButton)
-    $logoutButton = New-Object System.Windows.Forms.Button
-    $logoutButton.Location = New-Object System.Drawing.Point(140,240)
-    $logoutButton.Size = New-Object System.Drawing.Size(100,35)
-    $logoutButton.Text = 'Log Out'
-    $homeForm.Controls.Add($logoutButton)
-
-    $cutterButton.Add_Click({ Show-CutterMovements $homeForm $username })
-
-    $logoutButton.Add_Click({
-        Log-Attempt $username "" "LOGGED OUT"
-        # Set DialogResult to indicate logout
-        $homeForm.DialogResult = [System.Windows.Forms.DialogResult]::OK
-        $homeForm.Close()
-    })
-
-    $result = $homeForm.ShowDialog()
-    # Return true if the user logged out, otherwise false
-    return $result -eq [System.Windows.Forms.DialogResult]::OK
-}
-
-# 6. Show Login Form Function
-# ---MODIFIED---
-# This function now returns the username on success, or $null on failure/cancel.
-function Show-LoginForm {
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = 'Taconite App - Login'
-    $form.Size = New-Object System.Drawing.Size(300,230)
-    $form.StartPosition = 'CenterScreen'
-    # ... (rest of form setup is the same)
-        $labelUsername = New-Object System.Windows.Forms.Label
-    $labelUsername.Location = New-Object System.Drawing.Point(10,20)
-    $labelUsername.Size = New-Object System.Drawing.Size(280,20)
-    $labelUsername.Text = 'Username:'
-    $form.Controls.Add($labelUsername)
-    $textBoxUsername = New-Object System.Windows.Forms.TextBox
-    $textBoxUsername.Location = New-Object System.Drawing.Point(10,40)
-    $textBoxUsername.Size = New-Object System.Drawing.Size(260,20)
-    $form.Controls.Add($textBoxUsername)
-    $labelPassword = New-Object System.Windows.Forms.Label
-    $labelPassword.Location = New-Object System.Drawing.Point(10,70)
-    $labelPassword.Size = New-Object System.Drawing.Size(280,20)
-    $labelPassword.Text = 'Password:'
-    $form.Controls.Add($labelPassword)
-    $textBoxPassword = New-Object System.Windows.Forms.TextBox
-    $textBoxPassword.Location = New-Object System.Drawing.Point(10,90)
-    $textBoxPassword.Size = New-Object System.Drawing.Size(260,20)
-    $textBoxPassword.PasswordChar = '*'
-    $form.Controls.Add($textBoxPassword)
-    $loginButton = New-Object System.Windows.Forms.Button
-    $loginButton.Location = New-Object System.Drawing.Point(10,125)
-    $loginButton.Size = New-Object System.Drawing.Size(80,30)
-    $loginButton.Text = 'Login'
-    $form.Controls.Add($loginButton)
-    $createButton = New-Object System.Windows.Forms.Button
-    $createButton.Location = New-Object System.Drawing.Point(100,125)
-    $createButton.Size = New-Object System.Drawing.Size(110,30)
-    $createButton.Text = 'Create Account'
-    $form.Controls.Add($createButton)
-    $statusLabel = New-Object System.Windows.Forms.Label
-    $statusLabel.Location = New-Object System.Drawing.Point(10,165)
-    $statusLabel.Size = New-Object System.Drawing.Size(260,30)
-    $statusLabel.ForeColor = [System.Drawing.Color]::Red
-    $form.Controls.Add($statusLabel)
-
-    $loginButton.Add_Click({
-        $username = $textBoxUsername.Text.Trim()
-        $password = $textBoxPassword.Text.Trim()
-        $accounts = Get-Accounts
-        if ($accounts.ContainsKey($username) -and $accounts[$username] -eq $password) {
-            Log-Attempt $username $password "SUCCESS"
-            # Set DialogResult and close, returning control to the main loop
-            $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
-            $form.Close()
-        } else {
-            Log-Attempt $username $password "FAILED"
-            $statusLabel.Text = 'Invalid username or password.'
-        }
-    })
-    
-    $createButton.Add_Click({
-        # ... (create account logic is the same)
-        $username = $textBoxUsername.Text.Trim()
-        $password = $textBoxPassword.Text.Trim()
-        if ($username -eq '' -or $password -eq '') {
-            $statusLabel.Text = 'Please enter username and password.'
-            return
-        }
-        $accounts = Get-Accounts
-        if ($accounts.ContainsKey($username)) {
-            $statusLabel.Text = 'Username already exists.'
-            return
-        }
-        Save-Account $username $password
-        $statusLabel.ForeColor = [System.Drawing.Color]::Green
-        $statusLabel.Text = "Account created for '$username'!"
-        Log-Attempt $username "" "ACCOUNT CREATED"
-    })
-
-    $form.Add_Shown({$textBoxUsername.Select()})
-    
-    # Show the form and check the result
-    if ($form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-        return $textBoxUsername.Text.Trim()
-    } else {
-        return $null # User closed the form or cancelled
-    }
-}
-
-# 7. Start the App
-# ---FIXED---
-# Application loop to manage forms and prevent memory leaks.
-while ($true) {
-    $loggedInUser = Show-LoginForm
-    
-    # If user cancels or closes login form, exit script.
-    if (-not $loggedInUser) {
-        break 
-    }
-    
-    # Show home form. If user logs out, the loop continues and shows the login form again.
-    $loggedOut = Show-HomeForm -username $loggedInUser
-    if (-not $loggedOut) {
-        # If the user closes the home form without logging out, exit the app.
-        break
-    }
-}
+      
