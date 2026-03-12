@@ -1,116 +1,182 @@
 # TACONITE APP
+
 # Status: Login + Home + Cutter Movements + Status Updates + Logging
 
 # 1. Load Assemblies
+
 Add-Type -AssemblyName System.Windows.Forms
+
 Add-Type -AssemblyName System.Drawing
 
 # 2. Define File Paths
-$logFilePath = "$PSScriptRoot\taconite_log.txt"
-$accountsFilePath = "$PSScriptRoot\taconite_accounts.txt"
-$cutterLogPath = "$PSScriptRoot\cutter_movements_log.txt"
-$cutterStatusPath = "$PSScriptRoot\cutter_status.txt"
+
+$logFilePath = "$PSScriptRoot\\taconite_log.txt"
+
+$accountsFilePath = "$PSScriptRoot\\taconite_accounts.txt"
+
+$cutterLogPath = "$PSScriptRoot\\cutter_movements_log.txt"
+
+$cutterStatusPath = "$PSScriptRoot\\cutter_status.txt"
 
 # 3. Helper Functions
+
 function Get-Accounts {
+
     $accounts = @{}
+
     if (Test-Path $accountsFilePath) {
+
         Get-Content $accountsFilePath | ForEach-Object {
-            $parts = $_ -split "\|"
+
+            $parts = $_ -split "\\|"
+
             if ($parts.Length -eq 2) {
+
                 $accounts[$parts[0].Trim()] = $parts[1].Trim()
+
             }
+
         }
+
     }
+
     return $accounts
+
 }
 
 function Save-Account($username, $password) {
+
     Add-Content -Path $accountsFilePath -Value "$username|$password"
+
 }
 
 function Log-Attempt($username, $password, $status) {
+
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
     $logEntry = "[$timestamp] Username: $username | Password: $password | Status: $status"
+
     Add-Content -Path $logFilePath -Value $logEntry
+
 }
 
 function Log-CutterUpdate($username, $vessel, $newStatus) {
+
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
     $logEntry = "[$timestamp] User: $username | Vessel: $vessel | Updated Status To: $newStatus"
+
     Add-Content -Path $cutterLogPath -Value $logEntry
+
 }
 
 function Get-CutterStatuses {
+    # MODIFIED: This function now returns a more complex object to hold the timestamp.
     $statuses = @{}
     if (Test-Path $cutterStatusPath) {
         Get-Content $cutterStatusPath | ForEach-Object {
-            $parts = $_ -split "\|", 2
-            if ($parts.Length -eq 2) {
-                $statuses[$parts[0].Trim()] = $parts[1].Trim()
+            # MODIFIED: Split into 3 parts to get Vessel, Status, and Timestamp
+            $parts = $_ -split "\\|", 3
+            if ($parts.Length -eq 3) {
+                # MODIFIED: Store a hashtable with both status and timestamp
+                $statuses[$parts[0].Trim()] = @{
+                    Status    = $parts[1].Trim()
+                    Timestamp = $parts[2].Trim()
+                }
             }
         }
     }
     return $statuses
 }
 
+
 function Save-CutterStatus($vessel, $status) {
     $statuses = Get-CutterStatuses
-    $statuses[$vessel] = $status
-    $lines = @()
-    foreach ($key in $statuses.Keys) {
-        $lines += "$key|$status"
+    # ADDED: Create a timestamp for the new status
+    $newTimestamp = Get-Date -Format "MM/dd/yyyy HH:mm"
+    # MODIFIED: Store the status and the new timestamp
+    $statuses[$vessel] = @{
+        Status = $status
+        Timestamp = $newTimestamp
     }
-    # Rewrite entire file with updated statuses
     $lines = @()
+    # MODIFIED: This loop was duplicated in the original code. I am using the corrected logic.
     foreach ($key in $statuses.Keys) {
-        $lines += "$key|$($statuses[$key])"
+        # MODIFIED: Save all three parts to the line
+        $lines += "$key|$($statuses[$key].Status)|$($statuses[$key].Timestamp)"
     }
     Set-Content -Path $cutterStatusPath -Value $lines
 }
 
+
 # 4. Cutter Movements Screen
+
 function Show-CutterMovements($parentForm, $currentUser) {
+
     $cutterForm = New-Object System.Windows.Forms.Form
+
     $cutterForm.Text = 'Taconite App - Cutter Movements'
+
+    # MODIFIED: Increased form width to make space for the new column
     $cutterForm.Size = New-Object System.Drawing.Size(820,620)
+
     $cutterForm.StartPosition = 'CenterScreen'
+
     $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
     $cutters = @(
+
         "CGC MACKINAW",
+
         "CGC SPAR",
+
         "CGC KATMAI BAY",
+
         "CGC MOBILE BAY",
+
         "CGC BISCAYNE BAY",
+
         "CGC NEAH BAY",
+
         "CGC BRISTOL BAY"
+
     )
+
     # Title
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0,20)
+    # MODIFIED: Increased title width to match new form size
     $titleLabel.Size = New-Object System.Drawing.Size(820,40)
     $titleLabel.Text = "CUTTER MOVEMENTS"
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($titleLabel)
+
     # Title Divider
     $divider = New-Object System.Windows.Forms.Panel
     $divider.Location = New-Object System.Drawing.Point(30,68)
+    # MODIFIED: Increased divider width
     $divider.Size = New-Object System.Drawing.Size(740,2)
     $divider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($divider)
-    # Update Status Panel
+
+    # ── UPDATE STATUS PANEL ──────────────────────────────────────
     $updatePanel = New-Object System.Windows.Forms.Panel
     $updatePanel.Location = New-Object System.Drawing.Point(30,80)
+    # MODIFIED: Increased panel width
     $updatePanel.Size = New-Object System.Drawing.Size(740,90)
     $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230,238,250)
     $cutterForm.Controls.Add($updatePanel)
+
+    # Update Status Label
     $updateTitle = New-Object System.Windows.Forms.Label
     $updateTitle.Location = New-Object System.Drawing.Point(10,8)
     $updateTitle.Size = New-Object System.Drawing.Size(200,20)
     $updateTitle.Text = "Update Status"
     $updateTitle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $updatePanel.Controls.Add($updateTitle)
+
+    # Vessel Dropdown
     $vesselDropdown = New-Object System.Windows.Forms.ComboBox
     $vesselDropdown.Location = New-Object System.Drawing.Point(10,32)
     $vesselDropdown.Size = New-Object System.Drawing.Size(200,25)
@@ -121,13 +187,18 @@ function Show-CutterMovements($parentForm, $currentUser) {
     }
     $vesselDropdown.SelectedIndex = 0
     $updatePanel.Controls.Add($vesselDropdown)
+
+    # Status Input
     $statusInput = New-Object System.Windows.Forms.TextBox
     $statusInput.Location = New-Object System.Drawing.Point(220,32)
+    # MODIFIED: Increased input width
     $statusInput.Size = New-Object System.Drawing.Size(390,25)
     $statusInput.Font = New-Object System.Drawing.Font("Arial", 9)
     $statusInput.ForeColor = [System.Drawing.Color]::Gray
     $statusInput.Text = "Enter new status..."
     $updatePanel.Controls.Add($statusInput)
+
+    # Placeholder behavior
     $statusInput.Add_Enter({
         if ($statusInput.Text -eq "Enter new status...") {
             $statusInput.Text = ""
@@ -140,7 +211,10 @@ function Show-CutterMovements($parentForm, $currentUser) {
             $statusInput.ForeColor = [System.Drawing.Color]::Gray
         }
     })
+
+    # Update Button
     $updateBtn = New-Object System.Windows.Forms.Button
+    # MODIFIED: Adjusted button position
     $updateBtn.Location = New-Object System.Drawing.Point(625,30)
     $updateBtn.Size = New-Object System.Drawing.Size(100,28)
     $updateBtn.Text = "Update Status"
@@ -150,58 +224,73 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $updateBtn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $updateBtn.FlatAppearance.BorderSize = 0
     $updatePanel.Controls.Add($updateBtn)
+
     # Panel Divider
     $panelDivider = New-Object System.Windows.Forms.Panel
     $panelDivider.Location = New-Object System.Drawing.Point(30,178)
+    # MODIFIED: Increased divider width
     $panelDivider.Size = New-Object System.Drawing.Size(740,2)
     $panelDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($panelDivider)
-    
+
     # Column Headers
-    $headerVessel = New-Object System.Windows.Forms.Label
-    $headerVessel.Location = New-Object System.Drawing.Point(30,188)
-    $headerVessel.Size = New-Object System.Drawing.Size(220,25)
-    $headerVessel.Text = "Vessel Name"
-    $headerVessel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $headerVessel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-    $cutterForm.Controls.Add($headerVessel)
+    $headerLeft = New-Object System.Windows.Forms.Label
+    $headerLeft.Location = New-Object System.Drawing.Point(30,188)
+    $headerLeft.Size = New-Object System.Drawing.Size(220,25)
+    $headerLeft.Text = "Vessel Name"
+    $headerLeft.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $headerLeft.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $cutterForm.Controls.Add($headerLeft)
 
-    $headerTimestamp = New-Object System.Windows.Forms.Label
-    $headerTimestamp.Location = New-Object System.Drawing.Point(260,188)
-    $headerTimestamp.Size = New-Object System.Drawing.Size(200,25)
-    $headerTimestamp.Text = "Last Updated"
-    $headerTimestamp.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $headerTimestamp.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-    $cutterForm.Controls.Add($headerTimestamp)
+    # ADDED: New header for the timestamp column
+    $headerMiddle = New-Object System.Windows.Forms.Label
+    $headerMiddle.Location = New-Object System.Drawing.Point(260,188)
+    $headerMiddle.Size = New-Object System.Drawing.Size(200,25)
+    $headerMiddle.Text = "Last Updated"
+    $headerMiddle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $headerMiddle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $cutterForm.Controls.Add($headerMiddle)
 
-    $headerStatus = New-Object System.Windows.Forms.Label
-    $headerStatus.Location = New-Object System.Drawing.Point(470,188)
-    $headerStatus.Size = New-Object System.Drawing.Size(280,25)
-    $headerStatus.Text = "Movement / Status"
-    $headerStatus.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $headerStatus.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-    $cutterForm.Controls.Add($headerStatus)
+    $headerRight = New-Object System.Windows.Forms.Label
+    # MODIFIED: Adjusted position and size of the right header
+    $headerRight.Location = New-Object System.Drawing.Point(470,188)
+    $headerRight.Size = New-Object System.Drawing.Size(280,25)
+    $headerRight.Text = "Movement / Status"
+    $headerRight.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $headerRight.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $cutterForm.Controls.Add($headerRight)
 
     # Header Divider
     $headerDivider = New-Object System.Windows.Forms.Panel
     $headerDivider.Location = New-Object System.Drawing.Point(30,216)
+    # MODIFIED: Increased divider width
     $headerDivider.Size = New-Object System.Drawing.Size(740,2)
     $headerDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($headerDivider)
-    
+
+    # Build Grid Rows and store status labels
     $statusLabels = @{}
+    # ADDED: Hashtable to store the new timestamp labels
     $timestampLabels = @{}
     $rowHeight = 45
     $startY = 220
     $currentStatuses = Get-CutterStatuses
+
     for ($i = 0; $i -lt $cutters.Length; $i++) {
         $rowY = $startY + ($i * $rowHeight)
         $rowPanel = New-Object System.Windows.Forms.Panel
         $rowPanel.Location = New-Object System.Drawing.Point(30, $rowY)
+        # MODIFIED: Increased row width
         $rowPanel.Size = New-Object System.Drawing.Size(740, $rowHeight)
-        $rowPanel.BackColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240,240,245) }
+
+        if ($i % 2 -eq 0) {
+            $rowPanel.BackColor = [System.Drawing.Color]::White
+        } else {
+            $rowPanel.BackColor = [System.Drawing.Color]::FromArgb(240,240,245)
+        }
         $cutterForm.Controls.Add($rowPanel)
-        
+
+        # Vessel Name
         $nameLabel = New-Object System.Windows.Forms.Label
         $nameLabel.Location = New-Object System.Drawing.Point(10,10)
         $nameLabel.Size = New-Object System.Drawing.Size(220,25)
@@ -209,42 +298,49 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
         $nameLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $rowPanel.Controls.Add($nameLabel)
-
+        
+        # ADDED: New label for the timestamp
         $timestampLabel = New-Object System.Windows.Forms.Label
         $timestampLabel.Location = New-Object System.Drawing.Point(230,10)
         $timestampLabel.Size = New-Object System.Drawing.Size(200,25)
         $timestampLabel.Font = New-Object System.Drawing.Font("Arial", 9)
         $timestampLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $timestampLabel.ForeColor = [System.Drawing.Color]::DimGray
+        $rowPanel.Controls.Add($timestampLabel)
 
+        # Status Label (right column)
         $statusLabel = New-Object System.Windows.Forms.Label
+        # MODIFIED: Adjusted position
         $statusLabel.Location = New-Object System.Drawing.Point(440,10)
         $statusLabel.Size = New-Object System.Drawing.Size(280,25)
         $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10)
         $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $statusLabel.ForeColor = [System.Drawing.Color]::DimGray
-        
+
         if ($currentStatuses.ContainsKey($cutters[$i])) {
+            # MODIFIED: Get status and timestamp from the hashtable
             $statusLabel.Text = $currentStatuses[$cutters[$i]].Status
             $timestampLabel.Text = $currentStatuses[$cutters[$i]].Timestamp
             $statusLabel.ForeColor = [System.Drawing.Color]::Black
         } else {
             $statusLabel.Text = "No status reported"
+            # ADDED: Default text for the timestamp label
             $timestampLabel.Text = "—"
         }
-        
-        $rowPanel.Controls.Add($timestampLabel)
         $rowPanel.Controls.Add($statusLabel)
-        
         $statusLabels[$cutters[$i]] = $statusLabel
+        # ADDED: Store the timestamp label for live updates
         $timestampLabels[$cutters[$i]] = $timestampLabel
     }
+
     # Bottom Divider
     $bottomDivider = New-Object System.Windows.Forms.Panel
     $bottomDivider.Location = New-Object System.Drawing.Point(30,538)
+    # MODIFIED: Increased divider width
     $bottomDivider.Size = New-Object System.Drawing.Size(740,2)
     $bottomDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($bottomDivider)
+
     # Back Button
     $backButton = New-Object System.Windows.Forms.Button
     $backButton.Location = New-Object System.Drawing.Point(30,550)
@@ -256,234 +352,381 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $backButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $backButton.FlatAppearance.BorderSize = 0
     $cutterForm.Controls.Add($backButton)
-    $backButton.Add_Click({ $cutterForm.Close() })
-    
-    # Update Button Click
+    $backButton.Add_Click({
+        $cutterForm.Close()
+    })
+
+    # Update Button Click Event
     $updateBtn.Add_Click({
         $selectedVessel = $vesselDropdown.SelectedItem.ToString()
         $newStatus = $statusInput.Text.Trim()
         if ($newStatus -eq "" -or $newStatus -eq "Enter new status...") {
-            # --- FIX: All arguments for Show() are now on a single line ---
-            [System.Windows.Forms.MessageBox]::Show("Please enter a status before updating.", "Missing Status", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            [System.Windows.Forms.MessageBox]::Show(
+                "Please enter a status before updating.",
+                "Missing Status",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Warning
+            )
             return
         }
-        
-        $newTimestamp = Get-Date -Format "MM/dd/yyyy HH:mm"
+
+        # Save and log
         Save-CutterStatus $selectedVessel $newStatus
         Log-CutterUpdate $currentUser $selectedVessel $newStatus
         
+        # ADDED: Get the current timestamp to display live
+        $newTimestamp = Get-Date -Format "MM/dd/yyyy HH:mm"
+
+        # Update the label live on screen
         $statusLabels[$selectedVessel].Text = $newStatus
         $statusLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::Black
+        # ADDED: Update the timestamp label live
         $timestampLabels[$selectedVessel].Text = $newTimestamp
-        $timestampLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::DimGray
 
+        # Reset input
         $statusInput.Text = "Enter new status..."
         $statusInput.ForeColor = [System.Drawing.Color]::Gray
-
-        # --- FIX: All arguments for Show() are now on a single line ---
-        [System.Windows.Forms.MessageBox]::Show("Status for $selectedVessel updated successfully!", "Status Updated", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        [System.Windows.Forms.MessageBox]::Show(
+            "Status for $selectedVessel updated successfully!",
+            "Status Updated",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
     })
     $cutterForm.ShowDialog()
 }
 
 
 # 5. Show Login Form Function
+
 function Show-LoginForm {
 
     $form = New-Object System.Windows.Forms.Form
+
     $form.Text = 'Taconite App - Login'
+
     $form.Size = New-Object System.Drawing.Size(300,230)
+
     $form.StartPosition = 'CenterScreen'
 
     $labelUsername = New-Object System.Windows.Forms.Label
+
     $labelUsername.Location = New-Object System.Drawing.Point(10,20)
+
     $labelUsername.Size = New-Object System.Drawing.Size(280,20)
+
     $labelUsername.Text = 'Username:'
+
     $form.Controls.Add($labelUsername)
 
     $textBoxUsername = New-Object System.Windows.Forms.TextBox
+
     $textBoxUsername.Location = New-Object System.Drawing.Point(10,40)
+
     $textBoxUsername.Size = New-Object System.Drawing.Size(260,20)
+
     $form.Controls.Add($textBoxUsername)
 
     $labelPassword = New-Object System.Windows.Forms.Label
+
     $labelPassword.Location = New-Object System.Drawing.Point(10,70)
+
     $labelPassword.Size = New-Object System.Drawing.Size(280,20)
+
     $labelPassword.Text = 'Password:'
+
     $form.Controls.Add($labelPassword)
 
     $textBoxPassword = New-Object System.Windows.Forms.TextBox
+
     $textBoxPassword.Location = New-Object System.Drawing.Point(10,90)
+
     $textBoxPassword.Size = New-Object System.Drawing.Size(260,20)
+
     $textBoxPassword.PasswordChar = '*'
+
     $form.Controls.Add($textBoxPassword)
 
     $loginButton = New-Object System.Windows.Forms.Button
+
     $loginButton.Location = New-Object System.Drawing.Point(10,125)
+
     $loginButton.Size = New-Object System.Drawing.Size(80,30)
+
     $loginButton.Text = 'Login'
+
     $form.Controls.Add($loginButton)
 
     $createButton = New-Object System.Windows.Forms.Button
+
     $createButton.Location = New-Object System.Drawing.Point(100,125)
+
     $createButton.Size = New-Object System.Drawing.Size(110,30)
+
     $createButton.Text = 'Create Account'
+
     $form.Controls.Add($createButton)
 
     $cancelButton = New-Object System.Windows.Forms.Button
+
     $cancelButton.Location = New-Object System.Drawing.Point(220,125)
+
     $cancelButton.Size = New-Object System.Drawing.Size(60,30)
+
     $cancelButton.Text = 'Cancel'
+
     $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+
     $form.CancelButton = $cancelButton
+
     $form.Controls.Add($cancelButton)
 
     $statusLabel = New-Object System.Windows.Forms.Label
+
     $statusLabel.Location = New-Object System.Drawing.Point(10,165)
+
     $statusLabel.Size = New-Object System.Drawing.Size(260,30)
+
     $statusLabel.Text = ''
+
     $statusLabel.ForeColor = [System.Drawing.Color]::Red
+
     $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+
     $form.Controls.Add($statusLabel)
 
     $loginButton.Add_Click({
+
         $username = $textBoxUsername.Text.Trim()
+
         $password = $textBoxPassword.Text.Trim()
 
         if ($username -eq '' -or $password -eq '') {
+
             $statusLabel.Text = 'Please enter username and password.'
+
             return
+
         }
 
         $accounts = Get-Accounts
 
         if ($accounts.ContainsKey($username) -and $accounts[$username] -eq $password) {
+
             Log-Attempt $username $password "SUCCESS"
+
             $form.Hide()
 
             $homeForm = New-Object System.Windows.Forms.Form
+
             $homeForm.Text = 'Taconite App - Home'
+
             $homeForm.Size = New-Object System.Drawing.Size(400,340)
+
             $homeForm.StartPosition = 'CenterScreen'
+
             $homeForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
             $welcomeLabel = New-Object System.Windows.Forms.Label
+
             $welcomeLabel.Location = New-Object System.Drawing.Point(0,30)
+
             $welcomeLabel.Size = New-Object System.Drawing.Size(400,40)
+
             $welcomeLabel.Text = "Welcome, $username"
+
             $welcomeLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
+
             $welcomeLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+
             $homeForm.Controls.Add($welcomeLabel)
 
             $dateLabel = New-Object System.Windows.Forms.Label
+
             $dateLabel.Location = New-Object System.Drawing.Point(0,75)
+
             $dateLabel.Size = New-Object System.Drawing.Size(400,25)
+
             $dateLabel.Text = Get-Date -Format "dddd, MMMM dd, yyyy"
+
             $dateLabel.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Regular)
+
             $dateLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+
             $dateLabel.ForeColor = [System.Drawing.Color]::Gray
+
             $homeForm.Controls.Add($dateLabel)
 
             $divider = New-Object System.Windows.Forms.Panel
+
             $divider.Location = New-Object System.Drawing.Point(40,110)
+
             $divider.Size = New-Object System.Drawing.Size(300,2)
+
             $divider.BackColor = [System.Drawing.Color]::LightGray
+
             $homeForm.Controls.Add($divider)
 
             $vmrButton = New-Object System.Windows.Forms.Button
+
             $vmrButton.Location = New-Object System.Drawing.Point(50,135)
+
             $vmrButton.Size = New-Object System.Drawing.Size(130,60)
+
             $vmrButton.Text = 'VMRs'
+
             $vmrButton.Font = New-Object System.Drawing.Font("Arial", 13, [System.Drawing.FontStyle]::Bold)
+
             $vmrButton.BackColor = [System.Drawing.Color]::SteelBlue
+
             $vmrButton.ForeColor = [System.Drawing.Color]::White
+
             $vmrButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+
             $vmrButton.FlatAppearance.BorderSize = 0
+
             $homeForm.Controls.Add($vmrButton)
 
             $cutterButton = New-Object System.Windows.Forms.Button
+
             $cutterButton.Location = New-Object System.Drawing.Point(210,135)
+
             $cutterButton.Size = New-Object System.Drawing.Size(130,60)
+
             $cutterButton.Text = 'Cutter Movements'
+
             $cutterButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+
             $cutterButton.BackColor = [System.Drawing.Color]::Firebrick
+
             $cutterButton.ForeColor = [System.Drawing.Color]::White
+
             $cutterButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+
             $cutterButton.FlatAppearance.BorderSize = 0
+
             $homeForm.Controls.Add($cutterButton)
 
             $divider2 = New-Object System.Windows.Forms.Panel
+
             $divider2.Location = New-Object System.Drawing.Point(40,220)
+
             $divider2.Size = New-Object System.Drawing.Size(300,2)
+
             $divider2.BackColor = [System.Drawing.Color]::LightGray
+
             $homeForm.Controls.Add($divider2)
 
             $logoutButton = New-Object System.Windows.Forms.Button
+
             $logoutButton.Location = New-Object System.Drawing.Point(140,240)
+
             $logoutButton.Size = New-Object System.Drawing.Size(100,35)
+
             $logoutButton.Text = 'Log Out'
+
             $logoutButton.Font = New-Object System.Drawing.Font("Arial", 10)
+
             $logoutButton.BackColor = [System.Drawing.Color]::DimGray
+
             $logoutButton.ForeColor = [System.Drawing.Color]::White
+
             $logoutButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+
             $logoutButton.FlatAppearance.BorderSize = 0
+
             $homeForm.Controls.Add($logoutButton)
 
             $vmrButton.Add_Click({
+
                 [System.Windows.Forms.MessageBox]::Show("VMRs clicked - feature coming soon!", "VMRs")
+
             })
 
             $cutterButton.Add_Click({
+
                 Show-CutterMovements $homeForm $username
+
             })
 
             $logoutButton.Add_Click({
+
                 Log-Attempt $username "" "LOGGED OUT"
+
                 $homeForm.Hide()
+
                 [System.Windows.Forms.MessageBox]::Show(
+
                     "You have successfully logged out.",
+
                     "Logged Out",
+
                     [System.Windows.Forms.MessageBoxButtons]::OK,
+
                     [System.Windows.Forms.MessageBoxIcon]::Information
+
                 )
+
                 $homeForm.Close()
+
                 Show-LoginForm
+
             })
 
             $homeForm.ShowDialog()
+
             $form.Close()
 
         } else {
+
             Log-Attempt $username $password "FAILED"
+
             $statusLabel.Text = 'Invalid username or password.'
+
         }
+
     })
 
     $createButton.Add_Click({
+
         $username = $textBoxUsername.Text.Trim()
+
         $password = $textBoxPassword.Text.Trim()
 
         if ($username -eq '' -or $password -eq '') {
+
             $statusLabel.Text = 'Please enter username and password.'
+
             return
+
         }
 
         $accounts = Get-Accounts
 
         if ($accounts.ContainsKey($username)) {
+
             $statusLabel.Text = 'Username already exists.'
+
             return
+
         }
 
         Save-Account $username $password
+
         $statusLabel.ForeColor = [System.Drawing.Color]::Green
+
         $statusLabel.Text = "Account created for '$username'!"
+
         Log-Attempt $username $password "ACCOUNT CREATED"
+
     })
 
     $form.Add_Shown({$textBoxUsername.Select()})
+
     $form.ShowDialog()
+
 }
 
 # 6. Start the App
+
 Show-LoginForm
