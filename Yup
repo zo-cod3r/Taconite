@@ -157,7 +157,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $panelDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($panelDivider)
     
-    # --- MODIFIED: Column Headers ---
+    # Column Headers
     $headerVessel = New-Object System.Windows.Forms.Label
     $headerVessel.Location = New-Object System.Drawing.Point(30,188)
     $headerVessel.Size = New-Object System.Drawing.Size(220,25)
@@ -166,7 +166,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerVessel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cutterForm.Controls.Add($headerVessel)
 
-    # --- ADDED: Timestamp Header ---
     $headerTimestamp = New-Object System.Windows.Forms.Label
     $headerTimestamp.Location = New-Object System.Drawing.Point(260,188)
     $headerTimestamp.Size = New-Object System.Drawing.Size(200,25)
@@ -175,7 +174,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerTimestamp.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cutterForm.Controls.Add($headerTimestamp)
 
-    # --- MODIFIED: Status Header ---
     $headerStatus = New-Object System.Windows.Forms.Label
     $headerStatus.Location = New-Object System.Drawing.Point(470,188)
     $headerStatus.Size = New-Object System.Drawing.Size(280,25)
@@ -191,9 +189,8 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($headerDivider)
     
-    # --- MODIFIED: Added a hashtable for the new timestamp labels ---
     $statusLabels = @{}
-    $timestampLabels = @{} # ADDED
+    $timestampLabels = @{}
     $rowHeight = 45
     $startY = 220
     $currentStatuses = Get-CutterStatuses
@@ -205,7 +202,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $rowPanel.BackColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240,240,245) }
         $cutterForm.Controls.Add($rowPanel)
         
-        # Vessel Name
         $nameLabel = New-Object System.Windows.Forms.Label
         $nameLabel.Location = New-Object System.Drawing.Point(10,10)
         $nameLabel.Size = New-Object System.Drawing.Size(220,25)
@@ -214,7 +210,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $nameLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $rowPanel.Controls.Add($nameLabel)
 
-        # --- ADDED: Timestamp Column Label ---
         $timestampLabel = New-Object System.Windows.Forms.Label
         $timestampLabel.Location = New-Object System.Drawing.Point(230,10)
         $timestampLabel.Size = New-Object System.Drawing.Size(200,25)
@@ -222,7 +217,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $timestampLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $timestampLabel.ForeColor = [System.Drawing.Color]::DimGray
 
-        # --- MODIFIED: Status Column Label (adjusted position) ---
         $statusLabel = New-Object System.Windows.Forms.Label
         $statusLabel.Location = New-Object System.Drawing.Point(440,10)
         $statusLabel.Size = New-Object System.Drawing.Size(280,25)
@@ -230,21 +224,20 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $statusLabel.ForeColor = [System.Drawing.Color]::DimGray
         
-        # --- MODIFIED: Populate data for all three columns ---
         if ($currentStatuses.ContainsKey($cutters[$i])) {
             $statusLabel.Text = $currentStatuses[$cutters[$i]].Status
-            $timestampLabel.Text = $currentStatuses[$cutters[$i]].Timestamp # ADDED
+            $timestampLabel.Text = $currentStatuses[$cutters[$i]].Timestamp
             $statusLabel.ForeColor = [System.Drawing.Color]::Black
         } else {
             $statusLabel.Text = "No status reported"
-            $timestampLabel.Text = "—" # ADDED
+            $timestampLabel.Text = "—"
         }
         
-        $rowPanel.Controls.Add($timestampLabel) # ADDED
+        $rowPanel.Controls.Add($timestampLabel)
         $rowPanel.Controls.Add($statusLabel)
         
         $statusLabels[$cutters[$i]] = $statusLabel
-        $timestampLabels[$cutters[$i]] = $timestampLabel # ADDED
+        $timestampLabels[$cutters[$i]] = $timestampLabel
     }
     # Bottom Divider
     $bottomDivider = New-Object System.Windows.Forms.Panel
@@ -270,12 +263,8 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $selectedVessel = $vesselDropdown.SelectedItem.ToString()
         $newStatus = $statusInput.Text.Trim()
         if ($newStatus -eq "" -or $newStatus -eq "Enter new status...") {
-            [System.Windows.Forms.MessageBox]::Show(
-                "Please enter a status before updating.",
-                "Missing Status",
-                [System.Windows.Forms.MessageBoxButtons]::OK,
-                [System.Windows.Forms.MessageBoxIcon]::Warning
-            )
+            # --- FIX: All arguments for Show() are now on a single line ---
+            [System.Windows.Forms.MessageBox]::Show("Please enter a status before updating.", "Missing Status", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
             return
         }
         
@@ -283,23 +272,20 @@ function Show-CutterMovements($parentForm, $currentUser) {
         Save-CutterStatus $selectedVessel $newStatus
         Log-CutterUpdate $currentUser $selectedVessel $newStatus
         
-        # --- MODIFIED: Update the new timestamp label ---
         $statusLabels[$selectedVessel].Text = $newStatus
         $statusLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::Black
-        $timestampLabels[$selectedVessel].Text = $newTimestamp # ADDED
-        $timestampLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::DimGray # ADDED
+        $timestampLabels[$selectedVessel].Text = $newTimestamp
+        $timestampLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::DimGray
 
         $statusInput.Text = "Enter new status..."
         $statusInput.ForeColor = [System.Drawing.Color]::Gray
-        [System.Windows.Forms.MessageBox]::Show(
-            "Status for $selectedVessel updated successfully!",
-            "Status Updated",
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Information
-        )
+
+        # --- FIX: All arguments for Show() are now on a single line ---
+        [System.Windows.Forms.MessageBox]::Show("Status for $selectedVessel updated successfully!", "Status Updated", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
     })
     $cutterForm.ShowDialog()
 }
+
 
 # 5. Show Login Form Function
 function Show-LoginForm {
