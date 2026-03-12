@@ -535,7 +535,121 @@ function Show-LoginForm {
             $pocsButton.ForeColor = [System.Drawing.Color]::White
             $pocsButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
             $pocsButton.FlatAppearance.BorderSize = 0
-            $homeForm.Controls.Add($pocsButton)
+            $homeForm.Controls.Add($pocsBut# ADDED: New function for the Cutter Hours screen
+function Show-CutterHoursScreen($parentForm, $currentUser) {
+    $hoursForm = New-Object System.Windows.Forms.Form
+    $hoursForm.Text = 'Taconite App - Cutter Hours'
+    $hoursForm.Size = New-Object System.Drawing.Size(940,620)
+    $hoursForm.StartPosition = 'CenterScreen'
+    $hoursForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    $cutters = @(
+        "CGC MACKINAW",
+        "CGC SPAR",
+        "CGC KATMAI BAY",
+        "CGC MOBILE BAY",
+        "CGC BISCAYNE BAY",
+        "CGC NEAH BAY",
+        "CGC BRISTOL BAY" # Corrected duplicate Neah Bay from your prompt
+    )
+
+    # Title
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Location = New-Object System.Drawing.Point(0,20)
+    $titleLabel.Size = New-Object System.Drawing.Size(940,40)
+    $titleLabel.Text = "CURRENT CUTTER HOURS"
+    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $hoursForm.Controls.Add($titleLabel)
+
+    # Title Divider
+    $divider = New-Object System.Windows.Forms.Panel
+    $divider.Location = New-Object System.Drawing.Point(30,68)
+    $divider.Size = New-Object System.Drawing.Size(860,2)
+    $divider.BackColor = [System.Drawing.Color]::LightGray
+    $hoursForm.Controls.Add($divider)
+
+    # Column Headers
+    $colHeaders = @("US VSL", "CA VSL", "DA hrs", "VA hrs", "PI hrs", "MC hrs", "N-Ops C")
+    $headerStartX = 230
+    $headerWidth = 90
+
+    $headerVessel = New-Object System.Windows.Forms.Label
+    $headerVessel.Location = New-Object System.Drawing.Point(30,80)
+    $headerVessel.Size = New-Object System.Drawing.Size(190,25)
+    $headerVessel.Text = "Vessel"
+    $headerVessel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $headerVessel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $hoursForm.Controls.Add($headerVessel)
+
+    for ($i = 0; $i -lt $colHeaders.Length; $i++) {
+        $header = New-Object System.Windows.Forms.Label
+        $header.Location = New-Object System.Drawing.Point($headerStartX + ($i * $headerWidth),80)
+        $header.Size = New-Object System.Drawing.Size($headerWidth,25)
+        $header.Text = $colHeaders[$i]
+        $header.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+        $header.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+        $hoursForm.Controls.Add($header)
+    }
+
+    # Header Divider
+    $headerDivider = New-Object System.Windows.Forms.Panel
+    $headerDivider.Location = New-Object System.Drawing.Point(30,108)
+    $headerDivider.Size = New-Object System.Drawing.Size(860,2)
+    $headerDivider.BackColor = [System.Drawing.Color]::LightGray
+    $hoursForm.Controls.Add($headerDivider)
+
+    # Build Grid Rows
+    $rowHeight = 45
+    $startY = 112
+
+    for ($i = 0; $i -lt $cutters.Length; $i++) {
+        $rowY = $startY + ($i * $rowHeight)
+        $rowPanel = New-Object System.Windows.Forms.Panel
+        $rowPanel.Location = New-Object System.Drawing.Point(30, $rowY)
+        $rowPanel.Size = New-Object System.Drawing.Size(860, $rowHeight)
+        if ($i % 2 -eq 0) { $rowPanel.BackColor = [System.Drawing.Color]::White } else { $rowPanel.BackColor = [System.Drawing.Color]::FromArgb(240,240,245) }
+        $hoursForm.Controls.Add($rowPanel)
+
+        # Vessel Name Label
+        $nameLabel = New-Object System.Windows.Forms.Label
+        $nameLabel.Location = New-Object System.Drawing.Point(10,10)
+        $nameLabel.Size = New-Object System.Drawing.Size(180,25)
+        $nameLabel.Text = $cutters[$i]
+        $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+        $nameLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+        $rowPanel.Controls.Add($nameLabel)
+
+        # Create a textbox for each data column
+        for ($j = 0; $j -lt $colHeaders.Length; $j++) {
+            $dataBox = New-Object System.Windows.Forms.TextBox
+            $dataBox.Location = New-Object System.Drawing.Point($headerStartX - 30 + ($j * $headerWidth) + 5, 8)
+            $dataBox.Size = New-Object System.Drawing.Size($headerWidth - 10, 25)
+            $dataBox.Font = New-Object System.Drawing.Font("Arial", 10)
+            $dataBox.TextAlign = "Center"
+            # You would later populate this with data, e.g., $dataBox.Text = $cutterHours[$cutters[$i]][$colHeaders[$j]]
+            $rowPanel.Controls.Add($dataBox)
+        }
+    }
+
+    # Back Button
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(30,550)
+    $backButton.Size = New-Object System.Drawing.Size(80,30)
+    $backButton.Text = 'Back'
+    $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $backButton.BackColor = [System.Drawing.Color]::DimGray
+    $backButton.ForeColor = [System.Drawing.Color]::White
+    $backButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $backButton.FlatAppearance.BorderSize = 0
+    $hoursForm.Controls.Add($backButton)
+    $backButton.Add_Click({
+        $hoursForm.Close()
+    })
+
+    $hoursForm.ShowDialog()
+}
+ton)
 
             # ADDED: New button "TBD"
             $tbdButton = New-Object System.Windows.Forms.Button
