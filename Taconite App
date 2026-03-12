@@ -176,15 +176,23 @@ function Show-CutterMovements($parentForm, $currentUser) {
     # Column Headers
     $headerLeft = New-Object System.Windows.Forms.Label
     $headerLeft.Location = New-Object System.Drawing.Point(30,188)
-    $headerLeft.Size = New-Object System.Drawing.Size(250,25)
-    $headerLeft.Text = "Vessel Name"
+    $headerLeft.Size = New-Object System.Drawing.Size(150,25)
+    $headerLeft.Text = "Cutter Name"
     $headerLeft.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerLeft.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cutterForm.Controls.Add($headerLeft)
 
+    $headerCenter = New-Object System.Windows.Forms.Label
+    $headerCenter.Location = New-Object System.Drawing.Point(190,188)
+    $headerCenter.Size = New-Object System.Drawing.Size(150,25)
+    $headerCenter.Text = "Last Updated"
+    $headerCenter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $headerCenter.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $cutterForm.Controls.Add($headerCenter)
+
     $headerRight = New-Object System.Windows.Forms.Label
-    $headerRight.Location = New-Object System.Drawing.Point(310,188)
-    $headerRight.Size = New-Object System.Drawing.Size(250,25)
+    $headerRight.Location = New-Object System.Drawing.Point(350,188)
+    $headerRight.Size = New-Object System.Drawing.Size(150,25)
     $headerRight.Text = "Movement / Status"
     $headerRight.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerRight.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
