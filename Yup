@@ -1,5 +1,6 @@
 # TACONITE APP
 # Status: Login + Home + Cutter Movements + Status Updates + Logging
+
 # 1. Load Assemblies
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
