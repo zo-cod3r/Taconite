@@ -49,11 +49,12 @@ function Save-PocHourEntry($username, $cutter, $hourType, $hours) {
     Add-Content -Path $pocHoursPath -Value $logEntry
 }
 
-# This function now correctly reads the data file.
+# ADDED: Function to read and aggregate the total hours from the POC hours log.
 function Get-AggregatedPocHours {
     $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
     $hourTypes = @("VA", "DA", "PI", "MC")
     
+    # Initialize a nested hashtable to store the totals.
     $totals = @{}
     foreach ($cutter in $cutters) {
         $totals[$cutter] = @{}
@@ -71,6 +72,7 @@ function Get-AggregatedPocHours {
                 $hoursString = $parts[4].Trim()
                 $hoursValue = 0.0
                 
+                # Use InvariantCulture to ensure '.' is always the decimal separator, preventing regional issues.
                 $culture = [System.Globalization.CultureInfo]::InvariantCulture
                 if ([double]::TryParse($hoursString, [System.Globalization.NumberStyles]::Any, $culture, [ref]$hoursValue)) {
                     if ($totals.ContainsKey($cutterName) -and $totals[$cutterName].ContainsKey($hourType)) {
@@ -433,6 +435,7 @@ function Show-PocDataEntryScreen($parentForm, $currentUser) {
     $entryForm.ShowDialog()
 }
 
+# ADDED: This function creates the View Data screen.
 function Show-PocViewDataScreen($parentForm) {
     $viewForm = New-Object System.Windows.Forms.Form
     $viewForm.Text = 'Taconite App - View POC Hours'
@@ -505,7 +508,6 @@ function Show-PocViewDataScreen($parentForm) {
             $dataLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
             
             if ($aggregatedData.ContainsKey($cutterName) -and $aggregatedData[$cutterName].ContainsKey($hourType)) {
-                # Format to one decimal place for consistent display
                 $dataLabel.Text = $aggregatedData[$cutterName][$hourType].ToString("F1")
             } else {
                 $dataLabel.Text = "0.0"
@@ -535,6 +537,7 @@ function Show-PocViewDataScreen($parentForm) {
 
     $viewForm.ShowDialog()
 }
+
 
 function Show-PocSelectionScreen($parentForm, $currentUser) {
     $selectionForm = New-Object System.Windows.Forms.Form
@@ -596,7 +599,7 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $backButton.FlatAppearance.BorderSize = 0
     $selectionForm.Controls.Add($backButton)
     
-    # Click events are now correctly implemented
+    # MODIFIED: Click events are now correctly implemented
     $dataEntryButton.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser })
     $viewDataButton.Add_Click({ Show-PocViewDataScreen $selectionForm })
     $backButton.Add_Click({ $selectionForm.Close() })
