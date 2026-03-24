@@ -41,48 +41,33 @@ function Log-CutterUpdate($username, $vessel, $newStatus) {
     Add-Content -Path $cutterLogPath -Value $logEntry
 }
 
-# MODIFIED: Get-CutterStatuses now returns a more detailed object
 function Get-CutterStatuses {
     $statuses = @{}
     if (Test-Path $cutterStatusPath) {
         Get-Content $cutterStatusPath | ForEach-Object {
-            # Format: VESSEL|STATUS|TIMESTAMP|USER
-            $parts = $_ -split "\|", 4 
-            if ($parts.Length -eq 4) {
-                $statuses[$parts[0].Trim()] = @{
-                    Status = $parts[1].Trim()
-                    Timestamp = $parts[2].Trim()
-                    User = $parts[3].Trim()
-                }
+            $parts = $_ -split "\|", 2
+            if ($parts.Length -eq 2) {
+                $statuses[$parts[0].Trim()] = $parts[1].Trim()
             }
         }
     }
     return $statuses
 }
 
-# MODIFIED: Save-CutterStatus now requires the user and saves a timestamp
-function Save-CutterStatus($vessel, $status, $currentUser) {
+function Save-CutterStatus($vessel, $status) {
     $statuses = Get-CutterStatuses
-    $timestamp = Get-Date -Format "MM/dd/yy HH:mm"
-
-    # Update or add the new status object
-    $statuses[$vessel] = @{
-        Status = $status
-        Timestamp = $timestamp
-        User = $currentUser
-    }
-    
-    # Rewrite entire file with updated statuses in the new format
+    $statuses[$vessel] = $status
     $lines = @()
-    # Sort keys to maintain a consistent file order
-    $sortedKeys = $statuses.Keys | Sort-Object
-    foreach ($key in $sortedKeys) {
-        $statusEntry = $statuses[$key]
-        $lines += "$key|$($statusEntry.Status)|$($statusEntry.Timestamp)|$($statusEntry.User)"
+    foreach ($key in $statuses.Keys) {
+        $lines += "$key|$status"
+    }
+    # Rewrite entire file with updated statuses
+    $lines = @()
+    foreach ($key in $statuses.Keys) {
+        $lines += "$key|$($statuses[$key])"
     }
     Set-Content -Path $cutterStatusPath -Value $lines
 }
-
 
 # 4. Cutter Movements Screen
 function Show-CutterMovements($parentForm, $currentUser) {
@@ -204,12 +189,8 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerDivider.Size = New-Object System.Drawing.Size(540,2)
     $headerDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($headerDivider)
-    
     # Build Grid Rows and store status labels
-    # MODIFIED: Hashtables to hold the new labels for dynamic updates
     $statusLabels = @{}
-    $updateInfoLabels = @{}
-
     $rowHeight = 45
     $startY = 220
     $currentStatuses = Get-CutterStatuses
@@ -227,46 +208,26 @@ function Show-CutterMovements($parentForm, $currentUser) {
         # Vessel Name
         $nameLabel = New-Object System.Windows.Forms.Label
         $nameLabel.Location = New-Object System.Drawing.Point(10,10)
-        $nameLabel.Size = New-Object System.Drawing.Size(150,25) # Adjusted size
+        $nameLabel.Size = New-Object System.Drawing.Size(240,25)
         $nameLabel.Text = $cutters[$i]
         $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
         $nameLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $rowPanel.Controls.Add($nameLabel)
-
-        # ADDED: Update Info Label (Middle Column)
-        $updateInfoLabel = New-Object System.Windows.Forms.Label
-        $updateInfoLabel.Location = New-Object System.Drawing.Point(160, 2) # Start of middle column
-        $updateInfoLabel.Size = New-Object System.Drawing.Size(160, 40) # Multi-line
-        $updateInfoLabel.Font = New-Object System.Drawing.Font("Arial", 9)
-        $updateInfoLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-        $updateInfoLabel.ForeColor = [System.Drawing.Color]::DimGray
-        $rowPanel.Controls.Add($updateInfoLabel)
-
         # Status Label (right column)
         $statusLabel = New-Object System.Windows.Forms.Label
-        $statusLabel.Location = New-Object System.Drawing.Point(320, 10) # Adjusted position
-        $statusLabel.Size = New-Object System.Drawing.Size(210, 25) # Adjusted size
+        $statusLabel.Location = New-Object System.Drawing.Point(270,10)
+        $statusLabel.Size = New-Object System.Drawing.Size(250,25)
         $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10)
         $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         $statusLabel.ForeColor = [System.Drawing.Color]::DimGray
-        
-        # MODIFIED: Logic to populate all three columns
         if ($currentStatuses.ContainsKey($cutters[$i])) {
-            $statusData = $currentStatuses[$cutters[$i]]
-            $statusLabel.Text = $statusData.Status
+            $statusLabel.Text = $currentStatuses[$cutters[$i]]
             $statusLabel.ForeColor = [System.Drawing.Color]::Black
-            # Set the middle column text
-            $updateInfoLabel.Text = "$($statusData.Timestamp)`n$($statusData.User)" # `n creates a new line
-            $updateInfoLabel.ForeColor = [System.Drawing.Color]::Black
         } else {
             $statusLabel.Text = "No status reported"
-            $updateInfoLabel.Text = "N/A"
         }
         $rowPanel.Controls.Add($statusLabel)
-
-        # Store labels for live updates
         $statusLabels[$cutters[$i]] = $statusLabel
-        $updateInfoLabels[$cutters[$i]] = $updateInfoLabel
     }
     # Bottom Divider
     $bottomDivider = New-Object System.Windows.Forms.Panel
@@ -288,7 +249,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $backButton.Add_Click({
         $cutterForm.Close()
     })
-    
     # Update Button Click Event
     $updateBtn.Add_Click({
         $selectedVessel = $vesselDropdown.SelectedItem.ToString()
@@ -302,20 +262,12 @@ function Show-CutterMovements($parentForm, $currentUser) {
             )
             return
         }
-
-        # MODIFIED: Save-CutterStatus now requires the current user
-        Save-CutterStatus $selectedVessel $newStatus $currentUser
+        # Save and log
+        Save-CutterStatus $selectedVessel $newStatus
         Log-CutterUpdate $currentUser $selectedVessel $newStatus
-
-        # MODIFIED: Update the labels live on screen, including the new middle column
-        $timestampForDisplay = Get-Date -Format "MM/dd/yy HH:mm"
-        
+        # Update the label live on screen
         $statusLabels[$selectedVessel].Text = $newStatus
         $statusLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::Black
-        
-        $updateInfoLabels[$selectedVessel].Text = "$timestampForDisplay`n$currentUser"
-        $updateInfoLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::Black
-
         # Reset input
         $statusInput.Text = "Enter new status..."
         $statusInput.ForeColor = [System.Drawing.Color]::Gray
@@ -327,6 +279,89 @@ function Show-CutterMovements($parentForm, $currentUser) {
         )
     })
     $cutterForm.ShowDialog()
+}
+
+# ADDED: New function for the Cutter POCs selection screen
+function Show-PocSelectionScreen($parentForm, $currentUser) {
+    $selectionForm = New-Object System.Windows.Forms.Form
+    $selectionForm.Text = 'Taconite App - Cutter POCs'
+    $selectionForm.Size = New-Object System.Drawing.Size(320, 260)
+    $selectionForm.StartPosition = 'CenterScreen'
+    $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # Title
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
+    $titleLabel.Size = New-Object System.Drawing.Size(320, 30)
+    $titleLabel.Text = "CUTTER POCS"
+    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $selectionForm.Controls.Add($titleLabel)
+
+    # Title Divider
+    $divider = New-Object System.Windows.Forms.Panel
+    $divider.Location = New-Object System.Drawing.Point(30, 60)
+    $divider.Size = New-Object System.Drawing.Size(240, 2)
+    $divider.BackColor = [System.Drawing.Color]::LightGray
+    $selectionForm.Controls.Add($divider)
+
+    # Data Entry Button
+    $dataEntryButton = New-Object System.Windows.Forms.Button
+    $dataEntryButton.Location = New-Object System.Drawing.Point(40, 80)
+    $dataEntryButton.Size = New-Object System.Drawing.Size(110, 60)
+    $dataEntryButton.Text = 'Data Entry'
+    $dataEntryButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $dataEntryButton.BackColor = [System.Drawing.Color]::SteelBlue
+    $dataEntryButton.ForeColor = [System.Drawing.Color]::White
+    $dataEntryButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $dataEntryButton.FlatAppearance.BorderSize = 0
+    $selectionForm.Controls.Add($dataEntryButton)
+
+    # View Data Button
+    $viewDataButton = New-Object System.Windows.Forms.Button
+    $viewDataButton.Location = New-Object System.Drawing.Point(160, 80)
+    $viewDataButton.Size = New-Object System.Drawing.Size(110, 60)
+    $viewDataButton.Text = 'View Data'
+    $viewDataButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $viewDataButton.BackColor = [System.Drawing.Color]::DarkSlateGray
+    $viewDataButton.ForeColor = [System.Drawing.Color]::White
+    $viewDataButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $viewDataButton.FlatAppearance.BorderSize = 0
+    $selectionForm.Controls.Add($viewDataButton)
+
+    # Bottom Divider
+    $bottomDivider = New-Object System.Windows.Forms.Panel
+    $bottomDivider.Location = New-Object System.Drawing.Point(30, 160)
+    $bottomDivider.Size = New-Object System.Drawing.Size(240, 2)
+    $bottomDivider.BackColor = [System.Drawing.Color]::LightGray
+    $selectionForm.Controls.Add($bottomDivider)
+
+    # Back Button
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(115, 175)
+    $backButton.Size = New-Object System.Drawing.Size(80, 30)
+    $backButton.Text = 'Back'
+    $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $backButton.BackColor = [System.Drawing.Color]::DimGray
+    $backButton.ForeColor = [System.Drawing.Color]::White
+    $backButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $backButton.FlatAppearance.BorderSize = 0
+    $selectionForm.Controls.Add($backButton)
+
+    # --- Click Events ---
+    $dataEntryButton.Add_Click({
+        [System.Windows.Forms.MessageBox]::Show("Data Entry clicked - feature coming soon!", "Data Entry")
+    })
+
+    $viewDataButton.Add_Click({
+        [System.Windows.Forms.MessageBox]::Show("View Data clicked - feature coming soon!", "View Data")
+    })
+
+    $backButton.Add_Click({
+        $selectionForm.Close()
+    })
+
+    $selectionForm.ShowDialog()
 }
 
 
@@ -481,10 +516,12 @@ function Show-LoginForm {
             $cutterButton.Add_Click({
                 Show-CutterMovements $homeForm $username
             })
-            # ADDED: Click event for the new Cutter POCs button
+
+            # MODIFIED: Click event for the Cutter POCs button now opens the new selection screen
             $pocsButton.Add_Click({
-                [System.Windows.Forms.MessageBox]::Show("Cutter POCs clicked - feature coming soon!", "Cutter POCs")
+                Show-PocSelectionScreen $homeForm $username
             })
+            
             # ADDED: Click event for the new TBD button
             $tbdButton.Add_Click({
                 [System.Windows.Forms.MessageBox]::Show("TBD clicked - feature coming soon!", "TBD")
