@@ -1,0 +1,366 @@
+# ICEBREAKING HOURS LOG - TACONITE SEASON
+
+# 1. Load Required .NET Assemblies
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# 2. Define Global Variables and File Paths
+# This robust method ensures the log file is always in the same folder as the script.
+$scriptPath = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Path $MyInvocation.MyCommand.Definition -Parent }
+$logFilePath = Join-Path $scriptPath "icebreaking_log.txt"
+
+# Define the master lists for cutters and activities.
+$Vessels = @(
+    "CGC MACKINAW",
+    "CGC SPAR",
+    "CGC KATMAI BAY",
+    "CGC MOBILE BAY",
+    "CGC BISCAYNE BAY",
+    "CGC NEAH BAY",
+    "CGC BRISTOL BAY"
+)
+$IcebreakingTypes = @(
+    "Direct Icebreaking",
+    "Escort Operations",
+    "Standby / Preventative",
+    "Track Maintenance"
+)
+
+# 3. Helper Functions
+
+function Save-HourEntry {
+    param(
+        [string]$Vessel,
+        [string]$ActivityType,
+        [double]$Hours
+    )
+    # The log entry is stored in a simple, pipe-delimited format for easy parsing.
+    # FORMAT: Timestamp|Vessel|ActivityType|Hours
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "$timestamp|$Vessel|$ActivityType|$Hours"
+    Add-Content -Path $logFilePath -Value $logEntry
+}
+
+function Get-AggregatedHours {
+    # This function reads the entire log file and calculates the running totals.
+    
+    # Initialize a nested hashtable to store the totals.
+    $totals = @{}
+    foreach ($vessel in $Vessels) {
+        $totals[$vessel] = @{}
+        foreach ($type in $IcebreakingTypes) {
+            $totals[$vessel][$type] = 0.0
+        }
+    }
+
+    # Ensure the log file exists before trying to read it.
+    if (Test-Path $logFilePath) {
+        Get-Content $logFilePath | ForEach-Object {
+            $parts = $_ -split "\|"
+            if ($parts.Length -eq 4) {
+                $vesselName = $parts[1].Trim()
+                $activityType = $parts[2].Trim()
+                $hoursString = $parts[3].Trim()
+                $hoursValue = 0.0
+                
+                # Safely convert the hours string to a number, preventing errors from corrupted lines.
+                $culture = [System.Globalization.CultureInfo]::InvariantCulture
+                if ([double]::TryParse($hoursString, [System.Globalization.NumberStyles]::Any, $culture, [ref]$hoursValue)) {
+                    # Check if the keys exist before adding the value.
+                    if ($totals.ContainsKey($vesselName) -and $totals[$vesselName].ContainsKey($activityType)) {
+                        $totals[$vesselName][$activityType] += $hoursValue
+                    }
+                }
+            }
+        }
+    }
+    return $totals
+}
+
+
+# 4. GUI Screen Functions
+
+function Show-DataEntryForm {
+    param($parentForm)
+
+    $entryForm = New-Object System.Windows.Forms.Form
+    $entryForm.Text = 'Log Icebreaking Hours'
+    $entryForm.Size = New-Object System.Drawing.Size(420, 300)
+    $entryForm.StartPosition = 'CenterScreen'
+    $entryForm.FormBorderStyle = 'FixedDialog'
+    $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # --- Controls ---
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = "LOG NEW ENTRY"
+    $titleLabel.Location = New-Object System.Drawing.Point(0, 15)
+    $titleLabel.Size = New-Object System.Drawing.Size(420, 30)
+    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $entryForm.Controls.Add($titleLabel)
+
+    # Vessel Controls
+    $labelVessel = New-Object System.Windows.Forms.Label
+    $labelVessel.Text = "Select Vessel:"
+    $labelVessel.Location = New-Object System.Drawing.Point(30, 60)
+    $labelVessel.Size = New-Object System.Drawing.Size(340, 20)
+    $labelVessel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $entryForm.Controls.Add($labelVessel)
+
+    $vesselDropdown = New-Object System.Windows.Forms.ComboBox
+    $vesselDropdown.Location = New-Object System.Drawing.Point(30, 85)
+    $vesselDropdown.Size = New-Object System.Drawing.Size(340, 25)
+    $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 10)
+    $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    $vesselDropdown.Items.AddRange($Vessels)
+    $vesselDropdown.SelectedIndex = 0
+    $entryForm.Controls.Add($vesselDropdown)
+
+    # Activity & Hours Controls
+    $labelActivity = New-Object System.Windows.Forms.Label
+    $labelActivity.Text = "Activity Type:"
+    $labelActivity.Location = New-Object System.Drawing.Point(30, 130)
+    $labelActivity.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $entryForm.Controls.Add($labelActivity)
+
+    $activityDropdown = New-Object System.Windows.Forms.ComboBox
+    $activityDropdown.Location = New-Object System.Drawing.Point(30, 155)
+    $activityDropdown.Size = New-Object System.Drawing.Size(220, 25)
+    $activityDropdown.Font = New-Object System.Drawing.Font("Arial", 10)
+    $activityDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    $activityDropdown.Items.AddRange($IcebreakingTypes)
+    $activityDropdown.SelectedIndex = 0
+    $entryForm.Controls.Add($activityDropdown)
+
+    $labelHours = New-Object System.Windows.Forms.Label
+    $labelHours.Text = "Hours:"
+    $labelHours.Location = New-Object System.Drawing.Point(260, 130)
+    $labelHours.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $entryForm.Controls.Add($labelHours)
+
+    $hoursInput = New-Object System.Windows.Forms.TextBox
+    $hoursInput.Location = New-Object System.Drawing.Point(260, 155)
+    $hoursInput.Size = New-Object System.Drawing.Size(110, 25)
+    $hoursInput.Font = New-Object System.Drawing.Font("Arial", 10)
+    $entryForm.Controls.Add($hoursInput)
+
+    # Submit and Cancel Buttons
+    $submitButton = New-Object System.Windows.Forms.Button
+    $submitButton.Text = 'Submit'
+    $submitButton.Location = New-Object System.Drawing.Point(260, 210)
+    $submitButton.Size = New-Object System.Drawing.Size(110, 35)
+    $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $submitButton.BackColor = [System.Drawing.Color]::SeaGreen
+    $submitButton.ForeColor = [System.Drawing.Color]::White
+    $submitButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $entryForm.Controls.Add($submitButton)
+
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Text = 'Cancel'
+    $cancelButton.Location = New-Object System.Drawing.Point(140, 210)
+    $cancelButton.Size = New-Object System.Drawing.Size(110, 35)
+    $cancelButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $cancelButton.BackColor = [System.Drawing.Color]::DimGray
+    $cancelButton.ForeColor = [System.Drawing.Color]::White
+    $cancelButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $entryForm.Controls.Add($cancelButton)
+
+    # --- Event Handlers ---
+    $submitButton.Add_Click({
+        $selectedVessel = $vesselDropdown.SelectedItem.ToString()
+        $selectedActivity = $activityDropdown.SelectedItem.ToString()
+        $enteredHours = $hoursInput.Text.Trim()
+
+        # Input Validation
+        if ([string]::IsNullOrWhiteSpace($enteredHours)) {
+            [System.Windows.Forms.MessageBox]::Show("Please enter the number of hours.", "Input Missing", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            return
+        }
+        if (-not ($enteredHours -match '^\d+(\.\d+)?$')) {
+            [System.Windows.Forms.MessageBox]::Show("Please enter a valid number for hours (e.g., 4 or 2.5).", "Invalid Input", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            return
+        }
+
+        # Save the data and provide feedback
+        Save-HourEntry $selectedVessel $selectedActivity ([double]$enteredHours)
+        [System.Windows.Forms.MessageBox]::Show("Successfully logged $enteredHours hours for $selectedVessel.", "Entry Saved", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        
+        # Clear the input for the next entry
+        $hoursInput.Text = ""
+        $vesselDropdown.Focus()
+    })
+
+    $cancelButton.Add_Click({
+        $entryForm.Close()
+    })
+
+    $entryForm.ShowDialog($parentForm)
+}
+
+function Show-SummaryForm {
+    param($parentForm)
+
+    $summaryForm = New-Object System.Windows.Forms.Form
+    $summaryForm.Text = 'Icebreaking Hours Summary'
+    $summaryForm.Size = New-Object System.Drawing.Size(780, 520)
+    $summaryForm.StartPosition = 'CenterScreen'
+    $summaryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # --- Controls ---
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = "HOURS SUMMARY"
+    $titleLabel.Location = New-Object System.Drawing.Point(0, 15)
+    $titleLabel.Size = New-Object System.Drawing.Size(780, 30)
+    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $summaryForm.Controls.Add($titleLabel)
+
+    $divider = New-Object System.Windows.Forms.Panel
+    $divider.Location = New-Object System.Drawing.Point(30, 55)
+    $divider.Size = New-Object System.Drawing.Size(700, 2)
+    $divider.BackColor = [System.Drawing.Color]::LightGray
+    $summaryForm.Controls.Add($divider)
+
+    # --- Build Table/Grid ---
+    $colWidth = 140
+    $headerStartX = 180
+
+    # Column Headers
+    for ($i = 0; $i -lt $IcebreakingTypes.Length; $i++) {
+        $headerLabel = New-Object System.Windows.Forms.Label
+        $headerLabel.Location = New-Object System.Drawing.Point($headerStartX + ($i * $colWidth), 65)
+        $headerLabel.Size = New-Object System.Drawing.Size($colWidth, 40) # Taller for word wrap
+        $headerLabel.Text = $IcebreakingTypes[$i]
+        $headerLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+        $headerLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+        $summaryForm.Controls.Add($headerLabel)
+    }
+
+    # Header Divider
+    $headerDivider = New-Object System.Windows.Forms.Panel
+    $headerDivider.Location = New-Object System.Drawing.Point(30, 110)
+    $headerDivider.Size = New-Object System.Drawing.Size(700, 2)
+    $headerDivider.BackColor = [System.Drawing.Color]::LightGray
+    $summaryForm.Controls.Add($headerDivider)
+
+    # Grid Data Rows
+    $aggregatedData = Get-AggregatedHours
+    $rowHeight = 40
+    $gridStartY = 115
+
+    for ($i = 0; $i -lt $Vessels.Length; $i++) {
+        $vesselName = $Vessels[$i]
+        $rowY = $gridStartY + ($i * $rowHeight)
+        
+        $rowPanel = New-Object System.Windows.Forms.Panel
+        $rowPanel.Location = New-Object System.Drawing.Point(30, $rowY)
+        $rowPanel.Size = New-Object System.Drawing.Size(700, $rowHeight)
+        $rowPanel.BackColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240, 240, 245) }
+        $summaryForm.Controls.Add($rowPanel)
+
+        # Vessel Name Label (Row Header)
+        $nameLabel = New-Object System.Windows.Forms.Label
+        $nameLabel.Location = New-Object System.Drawing.Point(10, 8)
+        $nameLabel.Size = New-Object System.Drawing.Size(160, 25)
+        $nameLabel.Text = $vesselName
+        $nameLabel.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
+        $nameLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+        $rowPanel.Controls.Add($nameLabel)
+
+        # Data Labels for each activity type
+        for ($j = 0; $j -lt $IcebreakingTypes.Length; $j++) {
+            $activityType = $IcebreakingTypes[$j]
+            $dataLabel = New-Object System.Windows.Forms.Label
+            $dataLabel.Location = New-Object System.Drawing.Point(($headerStartX - 30) + ($j * $colWidth), 8)
+            $dataLabel.Size = New-Object System.Drawing.Size($colWidth, 25)
+            $dataLabel.Font = New-Object System.Drawing.Font("Arial", 10)
+            $dataLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+            
+            # Display the aggregated total, formatted to one decimal place.
+            $dataLabel.Text = $aggregatedData[$vesselName][$activityType].ToString("F1")
+            $rowPanel.Controls.Add($dataLabel)
+        }
+    }
+    
+    # Close Button
+    $closeButton = New-Object System.Windows.Forms.Button
+    $closeButton.Text = 'Close'
+    $closeButton.Location = New-Object System.Drawing.Point(330, 420)
+    $closeButton.Size = New-Object System.Drawing.Size(100, 35)
+    $closeButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $closeButton.BackColor = [System.Drawing.Color]::DimGray
+    $closeButton.ForeColor = [System.Drawing.Color]::White
+    $closeButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $summaryForm.Controls.Add($closeButton)
+    $closeButton.Add_Click({ $summaryForm.Close() })
+
+    $summaryForm.ShowDialog($parentForm)
+}
+
+function Show-MainMenu {
+    $mainMenu = New-Object System.Windows.Forms.Form
+    $mainMenu.Text = 'Icebreaking Hours Log'
+    $mainMenu.Size = New-Object System.Drawing.Size(340, 260)
+    $mainMenu.StartPosition = 'CenterScreen'
+    $mainMenu.FormBorderStyle = 'FixedSingle'
+    $mainMenu.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # --- Controls ---
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = "MAIN MENU"
+    $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
+    $titleLabel.Size = New-Object System.Drawing.Size(340, 30)
+    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $mainMenu.Controls.Add($titleLabel)
+
+    $entryButton = New-Object System.Windows.Forms.Button
+    $entryButton.Text = 'Enter Hours'
+    $entryButton.Location = New-Object System.Drawing.Point(40, 80)
+    $entryButton.Size = New-Object System.Drawing.Size(120, 60)
+    $entryButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $entryButton.BackColor = [System.Drawing.Color]::SteelBlue
+    $entryButton.ForeColor = [System.Drawing.Color]::White
+    $entryButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $mainMenu.Controls.Add($entryButton)
+
+    $summaryButton = New-Object System.Windows.Forms.Button
+    $summaryButton.Text = 'View Summary'
+    $summaryButton.Location = New-Object System.Drawing.Point(170, 80)
+    $summaryButton.Size = New-Object System.Drawing.Size(120, 60)
+    $summaryButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $summaryButton.BackColor = [System.Drawing.Color]::DarkSlateGray
+    $summaryButton.ForeColor = [System.Drawing.Color]::White
+    $summaryButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $mainMenu.Controls.Add($summaryButton)
+
+    $exitButton = New-Object System.Windows.Forms.Button
+    $exitButton.Text = 'Exit'
+    $exitButton.Location = New-Object System.Drawing.Point(115, 160)
+    $exitButton.Size = New-Object System.Drawing.Size(100, 35)
+    $exitButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $mainMenu.Controls.Add($exitButton)
+
+    # --- Event Handlers ---
+    $entryButton.Add_Click({
+        # Hide the main menu while the entry form is open.
+        $mainMenu.Hide()
+        Show-DataEntryForm -parentForm $mainMenu
+        # Show it again when the entry form is closed.
+        $mainMenu.Show()
+    })
+    $summaryButton.Add_Click({
+        $mainMenu.Hide()
+        Show-SummaryForm -parentForm $mainMenu
+        $mainMenu.Show()
+    })
+    $exitButton.Add_Click({
+        $mainMenu.Close()
+    })
+
+    # Show the main menu form.
+    [void]$mainMenu.ShowDialog()
+}
+
+# 5. Start the Application
+Show-MainMenu
