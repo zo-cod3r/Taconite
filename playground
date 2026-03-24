@@ -1,10 +1,11 @@
 # TACONITE APP
+
 # 1. Load Assemblies
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # 2. Define File Paths (Robust Method)
-# This section makes sure the data files are always saved in the same folder as the script.
+# This ensures data files are always in the same folder as the script.
 $scriptPath = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Path $MyInvocation.MyCommand.Definition -Parent }
 $logFilePath = Join-Path $scriptPath "taconite_log.txt"
 $accountsFilePath = Join-Path $scriptPath "taconite_accounts.txt"
@@ -48,11 +49,12 @@ function Save-PocHourEntry($username, $cutter, $hourType, $hours) {
     Add-Content -Path $pocHoursPath -Value $logEntry
 }
 
-# MODIFIED: Corrected and robust aggregation logic.
+# ADDED: Function to read and aggregate the total hours from the POC hours log.
 function Get-AggregatedPocHours {
     $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
     $hourTypes = @("VA", "DA", "PI", "MC")
     
+    # Initialize a nested hashtable to store the totals
     $totals = @{}
     foreach ($cutter in $cutters) {
         $totals[$cutter] = @{}
@@ -70,7 +72,7 @@ function Get-AggregatedPocHours {
                 $hoursString = $parts[4].Trim()
                 $hoursValue = 0.0
                 
-                # Use InvariantCulture to ensure '.' is always the decimal separator.
+                # Use InvariantCulture to ensure '.' is always the decimal separator, preventing regional issues.
                 $culture = [System.Globalization.CultureInfo]::InvariantCulture
                 if ([double]::TryParse($hoursString, [System.Globalization.NumberStyles]::Any, $culture, [ref]$hoursValue)) {
                     if ($totals.ContainsKey($cutterName) -and $totals[$cutterName].ContainsKey($hourType)) {
@@ -82,6 +84,7 @@ function Get-AggregatedPocHours {
     }
     return $totals
 }
+
 
 function Get-CutterStatuses {
     $statuses = @{}
@@ -125,8 +128,11 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $cutterForm.Size = New-Object System.Drawing.Size(620,620)
     $cutterForm.StartPosition = 'CenterScreen'
     $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
-    
+    $cutters = @(
+        "CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY",
+        "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY"
+    )
+    # Title
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0,20)
     $titleLabel.Size = New-Object System.Drawing.Size(620,40)
@@ -134,26 +140,26 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($titleLabel)
-
+    # Title Divider
     $divider = New-Object System.Windows.Forms.Panel
     $divider.Location = New-Object System.Drawing.Point(30,68)
     $divider.Size = New-Object System.Drawing.Size(540,2)
     $divider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($divider)
-
+    # ── UPDATE STATUS PANEL ──────────────────────────────────────
     $updatePanel = New-Object System.Windows.Forms.Panel
     $updatePanel.Location = New-Object System.Drawing.Point(30,80)
     $updatePanel.Size = New-Object System.Drawing.Size(540,90)
     $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230,238,250)
     $cutterForm.Controls.Add($updatePanel)
-
+    # Update Status Label
     $updateTitle = New-Object System.Windows.Forms.Label
     $updateTitle.Location = New-Object System.Drawing.Point(10,8)
     $updateTitle.Size = New-Object System.Drawing.Size(200,20)
     $updateTitle.Text = "Update Status"
     $updateTitle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $updatePanel.Controls.Add($updateTitle)
-
+    # Vessel Dropdown
     $vesselDropdown = New-Object System.Windows.Forms.ComboBox
     $vesselDropdown.Location = New-Object System.Drawing.Point(10,32)
     $vesselDropdown.Size = New-Object System.Drawing.Size(200,25)
@@ -162,7 +168,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $vesselDropdown.Items.AddRange($cutters)
     $vesselDropdown.SelectedIndex = 0
     $updatePanel.Controls.Add($vesselDropdown)
-
+    # Status Input
     $statusInput = New-Object System.Windows.Forms.TextBox
     $statusInput.Location = New-Object System.Drawing.Point(220,32)
     $statusInput.Size = New-Object System.Drawing.Size(210,25)
@@ -170,10 +176,10 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $statusInput.ForeColor = [System.Drawing.Color]::Gray
     $statusInput.Text = "Enter new status..."
     $updatePanel.Controls.Add($statusInput)
-
+    # Placeholder behavior
     $statusInput.Add_Enter({ if ($statusInput.Text -eq "Enter new status...") { $statusInput.Text = ""; $statusInput.ForeColor = [System.Drawing.Color]::Black } })
     $statusInput.Add_Leave({ if ($statusInput.Text -eq "") { $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray } })
-
+    # Update Button
     $updateBtn = New-Object System.Windows.Forms.Button
     $updateBtn.Location = New-Object System.Drawing.Point(440,30)
     $updateBtn.Size = New-Object System.Drawing.Size(90,28)
@@ -184,13 +190,13 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $updateBtn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $updateBtn.FlatAppearance.BorderSize = 0
     $updatePanel.Controls.Add($updateBtn)
-
+    # Panel Divider
     $panelDivider = New-Object System.Windows.Forms.Panel
     $panelDivider.Location = New-Object System.Drawing.Point(30,178)
     $panelDivider.Size = New-Object System.Drawing.Size(540,2)
     $panelDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($panelDivider)
-
+    # Column Headers
     $headerLeft = New-Object System.Windows.Forms.Label
     $headerLeft.Location = New-Object System.Drawing.Point(30,188)
     $headerLeft.Size = New-Object System.Drawing.Size(150,25)
@@ -198,7 +204,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerLeft.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerLeft.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cutterForm.Controls.Add($headerLeft)
-
     $headerCenter = New-Object System.Windows.Forms.Label
     $headerCenter.Location = New-Object System.Drawing.Point(190,188)
     $headerCenter.Size = New-Object System.Drawing.Size(150,25)
@@ -206,7 +211,6 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerCenter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerCenter.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($headerCenter)
-
     $headerRight = New-Object System.Windows.Forms.Label
     $headerRight.Location = New-Object System.Drawing.Point(350,188)
     $headerRight.Size = New-Object System.Drawing.Size(150,25)
@@ -214,7 +218,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerRight.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerRight.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cutterForm.Controls.Add($headerRight)
-
+    # Header Divider
     $headerDivider = New-Object System.Windows.Forms.Panel
     $headerDivider.Location = New-Object System.Drawing.Point(30,216)
     $headerDivider.Size = New-Object System.Drawing.Size(540,2)
@@ -504,6 +508,7 @@ function Show-PocViewDataScreen($parentForm) {
             $dataLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
             
             if ($aggregatedData.ContainsKey($cutterName) -and $aggregatedData[$cutterName].ContainsKey($hourType)) {
+                # Format to one decimal place for consistent display
                 $dataLabel.Text = $aggregatedData[$cutterName][$hourType].ToString("F1")
             } else {
                 $dataLabel.Text = "0.0"
