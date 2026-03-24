@@ -3,12 +3,14 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# 2. Define File Paths
-$logFilePath = "$PSScriptRoot\\taconite_log.txt"
-$accountsFilePath = "$PSScriptRoot\\taconite_accounts.txt"
-$cutterLogPath = "$PSScriptRoot\\cutter_movements_log.txt"
-$cutterStatusPath = "$PSScriptRoot\\cutter_status.txt"
-$pocHoursPath = "$PSScriptRoot\\poc_hours.txt"
+# 2. Define File Paths (Robust Method)
+# This section makes sure the data files are always saved in the same folder as the script.
+$scriptPath = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Path $MyInvocation.MyCommand.Definition -Parent }
+$logFilePath = Join-Path $scriptPath "taconite_log.txt"
+$accountsFilePath = Join-Path $scriptPath "taconite_accounts.txt"
+$cutterLogPath = Join-Path $scriptPath "cutter_movements_log.txt"
+$cutterStatusPath = Join-Path $scriptPath "cutter_status.txt"
+$pocHoursPath = Join-Path $scriptPath "poc_hours.txt"
 
 # 3. Helper Functions
 function Get-Accounts {
@@ -46,6 +48,7 @@ function Save-PocHourEntry($username, $cutter, $hourType, $hours) {
     Add-Content -Path $pocHoursPath -Value $logEntry
 }
 
+# MODIFIED: Corrected and robust aggregation logic.
 function Get-AggregatedPocHours {
     $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
     $hourTypes = @("VA", "DA", "PI", "MC")
@@ -67,7 +70,9 @@ function Get-AggregatedPocHours {
                 $hoursString = $parts[4].Trim()
                 $hoursValue = 0.0
                 
-                if ([double]::TryParse($hoursString, [ref]$hoursValue)) {
+                # Use InvariantCulture to ensure '.' is always the decimal separator.
+                $culture = [System.Globalization.CultureInfo]::InvariantCulture
+                if ([double]::TryParse($hoursString, [System.Globalization.NumberStyles]::Any, $culture, [ref]$hoursValue)) {
                     if ($totals.ContainsKey($cutterName) -and $totals[$cutterName].ContainsKey($hourType)) {
                         $totals[$cutterName][$hourType] += $hoursValue
                     }
@@ -120,11 +125,8 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $cutterForm.Size = New-Object System.Drawing.Size(620,620)
     $cutterForm.StartPosition = 'CenterScreen'
     $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $cutters = @(
-        "CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY",
-        "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY"
-    )
-    # Title
+    $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
+    
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0,20)
     $titleLabel.Size = New-Object System.Drawing.Size(620,40)
@@ -132,26 +134,26 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($titleLabel)
-    # Title Divider
+
     $divider = New-Object System.Windows.Forms.Panel
     $divider.Location = New-Object System.Drawing.Point(30,68)
     $divider.Size = New-Object System.Drawing.Size(540,2)
     $divider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($divider)
-    # ── UPDATE STATUS PANEL ──────────────────────────────────────
+
     $updatePanel = New-Object System.Windows.Forms.Panel
     $updatePanel.Location = New-Object System.Drawing.Point(30,80)
     $updatePanel.Size = New-Object System.Drawing.Size(540,90)
     $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230,238,250)
     $cutterForm.Controls.Add($updatePanel)
-    # Update Status Label
+
     $updateTitle = New-Object System.Windows.Forms.Label
     $updateTitle.Location = New-Object System.Drawing.Point(10,8)
     $updateTitle.Size = New-Object System.Drawing.Size(200,20)
     $updateTitle.Text = "Update Status"
     $updateTitle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $updatePanel.Controls.Add($updateTitle)
-    # Vessel Dropdown
+
     $vesselDropdown = New-Object System.Windows.Forms.ComboBox
     $vesselDropdown.Location = New-Object System.Drawing.Point(10,32)
     $vesselDropdown.Size = New-Object System.Drawing.Size(200,25)
@@ -160,7 +162,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $vesselDropdown.Items.AddRange($cutters)
     $vesselDropdown.SelectedIndex = 0
     $updatePanel.Controls.Add($vesselDropdown)
-    # Status Input
+
     $statusInput = New-Object System.Windows.Forms.TextBox
     $statusInput.Location = New-Object System.Drawing.Point(220,32)
     $statusInput.Size = New-Object System.Drawing.Size(210,25)
@@ -168,10 +170,10 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $statusInput.ForeColor = [System.Drawing.Color]::Gray
     $statusInput.Text = "Enter new status..."
     $updatePanel.Controls.Add($statusInput)
-    # Placeholder behavior
+
     $statusInput.Add_Enter({ if ($statusInput.Text -eq "Enter new status...") { $statusInput.Text = ""; $statusInput.ForeColor = [System.Drawing.Color]::Black } })
     $statusInput.Add_Leave({ if ($statusInput.Text -eq "") { $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray } })
-    # Update Button
+
     $updateBtn = New-Object System.Windows.Forms.Button
     $updateBtn.Location = New-Object System.Drawing.Point(440,30)
     $updateBtn.Size = New-Object System.Drawing.Size(90,28)
@@ -182,13 +184,13 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $updateBtn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $updateBtn.FlatAppearance.BorderSize = 0
     $updatePanel.Controls.Add($updateBtn)
-    # Panel Divider
+
     $panelDivider = New-Object System.Windows.Forms.Panel
     $panelDivider.Location = New-Object System.Drawing.Point(30,178)
     $panelDivider.Size = New-Object System.Drawing.Size(540,2)
     $panelDivider.BackColor = [System.Drawing.Color]::LightGray
     $cutterForm.Controls.Add($panelDivider)
-    # Column Headers
+
     $headerLeft = New-Object System.Windows.Forms.Label
     $headerLeft.Location = New-Object System.Drawing.Point(30,188)
     $headerLeft.Size = New-Object System.Drawing.Size(150,25)
@@ -196,6 +198,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerLeft.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerLeft.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cutterForm.Controls.Add($headerLeft)
+
     $headerCenter = New-Object System.Windows.Forms.Label
     $headerCenter.Location = New-Object System.Drawing.Point(190,188)
     $headerCenter.Size = New-Object System.Drawing.Size(150,25)
@@ -203,6 +206,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerCenter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerCenter.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($headerCenter)
+
     $headerRight = New-Object System.Windows.Forms.Label
     $headerRight.Location = New-Object System.Drawing.Point(350,188)
     $headerRight.Size = New-Object System.Drawing.Size(150,25)
@@ -210,7 +214,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $headerRight.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $headerRight.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $cutterForm.Controls.Add($headerRight)
-    # Header Divider
+
     $headerDivider = New-Object System.Windows.Forms.Panel
     $headerDivider.Location = New-Object System.Drawing.Point(30,216)
     $headerDivider.Size = New-Object System.Drawing.Size(540,2)
@@ -316,7 +320,7 @@ function Show-PocDataEntryScreen($parentForm, $currentUser) {
     $entryForm.Size = New-Object System.Drawing.Size(460, 320)
     $entryForm.StartPosition = 'CenterScreen'
     $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    # Title
+    
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
     $titleLabel.Size = New-Object System.Drawing.Size(460, 30)
@@ -324,13 +328,13 @@ function Show-PocDataEntryScreen($parentForm, $currentUser) {
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $entryForm.Controls.Add($titleLabel)
-    # Title Divider
+
     $divider = New-Object System.Windows.Forms.Panel
     $divider.Location = New-Object System.Drawing.Point(30, 60)
     $divider.Size = New-Object System.Drawing.Size(380, 2)
     $divider.BackColor = [System.Drawing.Color]::LightGray
     $entryForm.Controls.Add($divider)
-    # --- Input Fields ---
+
     $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
     $hourTypes = @("VA", "DA", "PI", "MC")
     
@@ -536,7 +540,7 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $selectionForm.Size = New-Object System.Drawing.Size(320, 260)
     $selectionForm.StartPosition = 'CenterScreen'
     $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    # Title
+    
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
     $titleLabel.Size = New-Object System.Drawing.Size(320, 30)
@@ -544,13 +548,13 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $selectionForm.Controls.Add($titleLabel)
-    # Title Divider
+
     $divider = New-Object System.Windows.Forms.Panel
     $divider.Location = New-Object System.Drawing.Point(30, 60)
     $divider.Size = New-Object System.Drawing.Size(240, 2)
     $divider.BackColor = [System.Drawing.Color]::LightGray
     $selectionForm.Controls.Add($divider)
-    # Data Entry Button
+
     $dataEntryButton = New-Object System.Windows.Forms.Button
     $dataEntryButton.Location = New-Object System.Drawing.Point(40, 80)
     $dataEntryButton.Size = New-Object System.Drawing.Size(110, 60)
@@ -561,7 +565,7 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $dataEntryButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $dataEntryButton.FlatAppearance.BorderSize = 0
     $selectionForm.Controls.Add($dataEntryButton)
-    # View Data Button
+
     $viewDataButton = New-Object System.Windows.Forms.Button
     $viewDataButton.Location = New-Object System.Drawing.Point(160, 80)
     $viewDataButton.Size = New-Object System.Drawing.Size(110, 60)
@@ -572,13 +576,13 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $viewDataButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $viewDataButton.FlatAppearance.BorderSize = 0
     $selectionForm.Controls.Add($viewDataButton)
-    # Bottom Divider
+
     $bottomDivider = New-Object System.Windows.Forms.Panel
     $bottomDivider.Location = New-Object System.Drawing.Point(30, 160)
     $bottomDivider.Size = New-Object System.Drawing.Size(240, 2)
     $bottomDivider.BackColor = [System.Drawing.Color]::LightGray
     $selectionForm.Controls.Add($bottomDivider)
-    # Back Button
+
     $backButton = New-Object System.Windows.Forms.Button
     $backButton.Location = New-Object System.Drawing.Point(115, 175)
     $backButton.Size = New-Object System.Drawing.Size(80, 30)
@@ -589,7 +593,7 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $backButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $backButton.FlatAppearance.BorderSize = 0
     $selectionForm.Controls.Add($backButton)
-    # --- Click Events ---
+    
     $dataEntryButton.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser })
     $viewDataButton.Add_Click({ Show-PocViewDataScreen $selectionForm })
     $backButton.Add_Click({ $selectionForm.Close() })
@@ -602,35 +606,42 @@ function Show-LoginForm {
     $form.Text = 'Taconite App - Login'
     $form.Size = New-Object System.Drawing.Size(300,230)
     $form.StartPosition = 'CenterScreen'
+    
     $labelUsername = New-Object System.Windows.Forms.Label
     $labelUsername.Location = New-Object System.Drawing.Point(10,20)
     $labelUsername.Size = New-Object System.Drawing.Size(280,20)
     $labelUsername.Text = 'Username:'
     $form.Controls.Add($labelUsername)
+
     $textBoxUsername = New-Object System.Windows.Forms.TextBox
     $textBoxUsername.Location = New-Object System.Drawing.Point(10,40)
     $textBoxUsername.Size = New-Object System.Drawing.Size(260,20)
     $form.Controls.Add($textBoxUsername)
+
     $labelPassword = New-Object System.Windows.Forms.Label
     $labelPassword.Location = New-Object System.Drawing.Point(10,70)
     $labelPassword.Size = New-Object System.Drawing.Size(280,20)
     $labelPassword.Text = 'Password:'
     $form.Controls.Add($labelPassword)
+
     $textBoxPassword = New-Object System.Windows.Forms.TextBox
     $textBoxPassword.Location = New-Object System.Drawing.Point(10,90)
     $textBoxPassword.Size = New-Object System.Drawing.Size(260,20)
     $textBoxPassword.PasswordChar = '*'
     $form.Controls.Add($textBoxPassword)
+
     $loginButton = New-Object System.Windows.Forms.Button
     $loginButton.Location = New-Object System.Drawing.Point(10,125)
     $loginButton.Size = New-Object System.Drawing.Size(80,30)
     $loginButton.Text = 'Login'
     $form.Controls.Add($loginButton)
+
     $createButton = New-Object System.Windows.Forms.Button
     $createButton.Location = New-Object System.Drawing.Point(100,125)
     $createButton.Size = New-Object System.Drawing.Size(110,30)
     $createButton.Text = 'Create Account'
     $form.Controls.Add($createButton)
+
     $cancelButton = New-Object System.Windows.Forms.Button
     $cancelButton.Location = New-Object System.Drawing.Point(220,125)
     $cancelButton.Size = New-Object System.Drawing.Size(60,30)
@@ -638,6 +649,7 @@ function Show-LoginForm {
     $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $form.CancelButton = $cancelButton
     $form.Controls.Add($cancelButton)
+
     $statusLabel = New-Object System.Windows.Forms.Label
     $statusLabel.Location = New-Object System.Drawing.Point(10,165)
     $statusLabel.Size = New-Object System.Drawing.Size(260,30)
@@ -645,6 +657,7 @@ function Show-LoginForm {
     $statusLabel.ForeColor = [System.Drawing.Color]::Red
     $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $form.Controls.Add($statusLabel)
+
     $loginButton.Add_Click({
         $username = $textBoxUsername.Text.Trim()
         $password = $textBoxPassword.Text.Trim()
@@ -661,6 +674,7 @@ function Show-LoginForm {
             $homeForm.Size = New-Object System.Drawing.Size(400,420)
             $homeForm.StartPosition = 'CenterScreen'
             $homeForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+            
             $welcomeLabel = New-Object System.Windows.Forms.Label
             $welcomeLabel.Location = New-Object System.Drawing.Point(0,30)
             $welcomeLabel.Size = New-Object System.Drawing.Size(400,40)
@@ -668,6 +682,7 @@ function Show-LoginForm {
             $welcomeLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
             $welcomeLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
             $homeForm.Controls.Add($welcomeLabel)
+
             $dateLabel = New-Object System.Windows.Forms.Label
             $dateLabel.Location = New-Object System.Drawing.Point(0,75)
             $dateLabel.Size = New-Object System.Drawing.Size(400,25)
@@ -676,11 +691,13 @@ function Show-LoginForm {
             $dateLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
             $dateLabel.ForeColor = [System.Drawing.Color]::Gray
             $homeForm.Controls.Add($dateLabel)
+
             $divider = New-Object System.Windows.Forms.Panel
             $divider.Location = New-Object System.Drawing.Point(40,110)
             $divider.Size = New-Object System.Drawing.Size(300,2)
             $divider.BackColor = [System.Drawing.Color]::LightGray
             $homeForm.Controls.Add($divider)
+
             $vmrButton = New-Object System.Windows.Forms.Button
             $vmrButton.Location = New-Object System.Drawing.Point(50,135)
             $vmrButton.Size = New-Object System.Drawing.Size(130,60)
@@ -691,6 +708,7 @@ function Show-LoginForm {
             $vmrButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
             $vmrButton.FlatAppearance.BorderSize = 0
             $homeForm.Controls.Add($vmrButton)
+
             $cutterButton = New-Object System.Windows.Forms.Button
             $cutterButton.Location = New-Object System.Drawing.Point(210,135)
             $cutterButton.Size = New-Object System.Drawing.Size(130,60)
@@ -701,6 +719,7 @@ function Show-LoginForm {
             $cutterButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
             $cutterButton.FlatAppearance.BorderSize = 0
             $homeForm.Controls.Add($cutterButton)
+
             $pocsButton = New-Object System.Windows.Forms.Button
             $pocsButton.Location = New-Object System.Drawing.Point(50,205)
             $pocsButton.Size = New-Object System.Drawing.Size(130,60)
@@ -711,6 +730,7 @@ function Show-LoginForm {
             $pocsButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
             $pocsButton.FlatAppearance.BorderSize = 0
             $homeForm.Controls.Add($pocsButton)
+
             $tbdButton = New-Object System.Windows.Forms.Button
             $tbdButton.Location = New-Object System.Drawing.Point(210,205)
             $tbdButton.Size = New-Object System.Drawing.Size(130,60)
@@ -721,11 +741,13 @@ function Show-LoginForm {
             $tbdButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
             $tbdButton.FlatAppearance.BorderSize = 0
             $homeForm.Controls.Add($tbdButton)
+
             $divider2 = New-Object System.Windows.Forms.Panel
             $divider2.Location = New-Object System.Drawing.Point(40,290)
             $divider2.Size = New-Object System.Drawing.Size(300,2)
             $divider2.BackColor = [System.Drawing.Color]::LightGray
             $homeForm.Controls.Add($divider2)
+
             $logoutButton = New-Object System.Windows.Forms.Button
             $logoutButton.Location = New-Object System.Drawing.Point(140,310)
             $logoutButton.Size = New-Object System.Drawing.Size(100,35)
@@ -736,6 +758,7 @@ function Show-LoginForm {
             $logoutButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
             $logoutButton.FlatAppearance.BorderSize = 0
             $homeForm.Controls.Add($logoutButton)
+
             $vmrButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("VMRs clicked - feature coming soon!", "VMRs") })
             $cutterButton.Add_Click({ Show-CutterMovements $homeForm $username })
             $pocsButton.Add_Click({ Show-PocSelectionScreen $homeForm $username })
