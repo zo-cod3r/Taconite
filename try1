@@ -1,68 +1,57 @@
-Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
-# --- Global Variables ---
-[int]$RunningTotal = 0
+# Global variable to store the running total
+$script:RunningTotal = 0
 
-# --- Function to Handle Addition ---
-function Add-Number {
-    # Get the value from the input textbox
-    $input_value = $txtInput.Text
+# Create the form
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Running Total Calculator"
+$form.Size = New-Object System.Drawing.Size(300, 200)
+$form.StartPosition = "CenterScreen"
 
-    # Try to convert the input to a number
-    if ([int]::TryParse($input_value, [ref]$number)) {
-        # Add to the running total
-        $RunningTotal += $number
-        # Update the total label
-        $lblTotal.Content = "Running Total: $RunningTotal"
-        # Clear the input textbox for the next entry
-        $txtInput.Text = ""
+# Create and configure the input label
+$inputLabel = New-Object System.Windows.Forms.Label
+$inputLabel.Location = New-Object System.Drawing.Point(10, 20)
+$inputLabel.Size = New-Object System.Drawing.Size(260, 20)
+$inputLabel.Text = "Enter a number:"
+$form.Controls.Add($inputLabel)
+
+# Create and configure the input text box
+$inputTextBox = New-Object System.Windows.Forms.TextBox
+$inputTextBox.Location = New-Object System.Drawing.Point(10, 40)
+$inputTextBox.Size = New-Object System.Drawing.Size(260, 20)
+$form.Controls.Add($inputTextBox)
+
+# Create and configure the total label
+$totalLabel = New-Object System.Windows.Forms.Label
+$totalLabel.Location = New-Object System.Drawing.Point(10, 100)
+$totalLabel.Size = New-Object System.Drawing.Size(260, 20)
+$totalLabel.Text = "Running Total: 0"
+$form.Controls.Add($totalLabel)
+
+# Create the button and define its action
+$addButton = New-Object System.Windows.Forms.Button
+$addButton.Location = New-Object System.Drawing.Point(10, 70)
+$addButton.Size = New-Object System.Drawing.Size(120, 30)
+$addButton.Text = "Add Number"
+$addButton.Add_Click({
+    if ($inputTextBox.Text -match '^-?\d+(\.\d+)?$') {
+        $numberToAdd = [double]$inputTextBox.Text
+        $script:RunningTotal += $numberToAdd
+        $totalLabel.Text = "Running Total: $script:RunningTotal"
+        $inputTextBox.Text = ""
     }
     else {
-        # Show an error message for invalid input
-        [System.Windows.MessageBox]::Show("Please enter a valid number.", "Invalid Input", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning) | Out-Null
+        [System.Windows.Forms.MessageBox]::Show("Please enter a valid numeric value.", "Invalid Input", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
     }
-}
+})
+$form.Controls.Add($addButton)
 
-# --- Design the GUI (WPF XAML) ---
-[xml]$xaml = @"
-<Window xmlns="http://schemas.microsoft.com"
-        xmlns:x="http://schemas.microsoft.com"
-        Title="Running Total Calculator" Height="200" Width="300"
-        WindowStartupLocation="CenterScreen">
-    <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
+# Add an event handler to focus the input text box when the form is activated
+$form.Add_Activated({
+    $form.ActiveControl = $inputTextBox
+})
 
-        <Label Grid.Row="0" Grid.ColumnSpan="2" Content="Enter a number and click 'Add'" FontSize="14" Margin="0,0,0,10"/>
-        
-        <TextBox Name="txtInput" Grid.Row="1" Grid.Column="0" Height="25" Margin="0,0,10,0"/>
-        
-        <Button Name="btnAdd" Grid.Row="1" Grid.Column="1" Content="Add" Width="75" Height="25"/>
-        
-        <Label Name="lblTotal" Grid.Row="2" Grid.ColumnSpan="2" Content="Running Total: 0" FontSize="16" FontWeight="Bold" Margin="0,20,0,0"/>
-    </Grid>
-</Window>
-"@
-
-# --- Load the GUI and Connect Controls ---
-$reader = New-Object System.Xml.XmlNodeReader $xaml
-$window = [Windows.Markup.XamlReader]::Load($reader)
-
-# Get references to the controls by their Name attribute
-$txtInput = $window.FindName("txtInput")
-$btnAdd = $window.FindName("btnAdd")
-$lblTotal = $window.FindName("lblTotal")
-
-# Hook up the button click event to the PowerShell function
-$btnAdd.Add_Click({ Add-Number })
-
-# Display the window
-$window.ShowDialog() | Out-Null
+# Display the form
+$form.ShowDialog() | Out-Null
