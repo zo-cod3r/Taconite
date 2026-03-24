@@ -1,0 +1,143 @@
+# Load necessary assemblies for GUI
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# Global variable to store data
+$Global:data = @()
+
+# --- Home Screen ---
+function Show-HomeScreen {
+    $homeForm = New-Object System.Windows.Forms.Form
+    $homeForm.Text = 'Home Screen'
+    $homeForm.Size = New-Object System.Drawing.Size(300, 200)
+    $homeForm.StartPosition = 'CenterScreen'
+
+    # "Enter Data" button
+    $enterDataButton = New-Object System.Windows.Forms.Button
+    $enterDataButton.Location = New-Object System.Drawing.Point(75, 50)
+    $enterDataButton.Size = New-Object System.Drawing.Size(120, 40)
+    $enterDataButton.Text = 'Enter Data'
+    $enterDataButton.Add_Click({
+        $homeForm.Close()
+        Show-EnterDataScreen
+    })
+    $homeForm.Controls.Add($enterDataButton)
+
+    # "View Data" button
+    $viewDataButton = New-Object System.Windows.Forms.Button
+    $viewDataButton.Location = New-Object System.Drawing.Point(75, 100)
+    $viewDataButton.Size = New-Object System.Drawing.Size(120, 40)
+    $viewDataButton.Text = 'View Data'
+    $viewDataButton.Add_Click({
+        $homeForm.Close()
+        Show-ViewDataScreen
+    })
+    $homeForm.Controls.Add($viewDataButton)
+
+    $homeForm.ShowDialog()
+}
+
+# --- Enter Data Screen ---
+function Show-EnterDataScreen {
+    $enterDataForm = New-Object System.Windows.Forms.Form
+    $enterDataForm.Text = 'Enter Data'
+    $enterDataForm.Size = New-Object System.Drawing.Size(320, 250)
+    $enterDataForm.StartPosition = 'CenterScreen'
+
+    # Dropdown for MACKINAW/MOBILE
+    $label1 = New-Object System.Windows.Forms.Label
+    $label1.Location = New-Object System.Drawing.Point(20, 20)
+    $label1.Text = 'Location:'
+    $enterDataForm.Controls.Add($label1)
+
+    $locationDropDown = New-Object System.Windows.Forms.ComboBox
+    $locationDropDown.Location = New-Object System.Drawing.Point(120, 20)
+    $locationDropDown.Items.AddRange(@('MACKINAW', 'MOBILE'))
+    $locationDropDown.SelectedIndex = 0
+    $enterDataForm.Controls.Add($locationDropDown)
+
+    # Dropdown for PI/DA
+    $label2 = New-Object System.Windows.Forms.Label
+    $label2.Location = New-Object System.Drawing.Point(20, 60)
+    $label2.Text = 'Type:'
+    $enterDataForm.Controls.Add($label2)
+
+    $typeDropDown = New-Object System.Windows.Forms.ComboBox
+    $typeDropDown.Location = New-Object System.Drawing.Point(120, 60)
+    $typeDropDown.Items.AddRange(@('PI', 'DA'))
+    $typeDropDown.SelectedIndex = 0
+    $enterDataForm.Controls.Add($typeDropDown)
+
+    # Text box for hours
+    $label3 = New-Object System.Windows.Forms.Label
+    $label3.Location = New-Object System.Drawing.Point(20, 100)
+    $label3.Text = 'Hours:'
+    $enterDataForm.Controls.Add($label3)
+
+    $hoursTextBox = New-Object System.Windows.Forms.TextBox
+    $hoursTextBox.Location = New-Object System.Drawing.Point(120, 100)
+    $enterDataForm.Controls.Add($hoursTextBox)
+
+    # Submit button
+    $submitButton = New-Object System.Windows.Forms.Button
+    $submitButton.Location = New-Object System.Drawing.Point(120, 140)
+    $submitButton.Size = New-Object System.Drawing.Size(75, 23)
+    $submitButton.Text = 'Submit'
+    $submitButton.Add_Click({
+        $entry = [PSCustomObject]@{
+            Location = $locationDropDown.SelectedItem
+            Type     = $typeDropDown.SelectedItem
+            Hours    = $hoursTextBox.Text
+        }
+        $Global:data += $entry
+        $enterDataForm.Close()
+        Show-HomeScreen
+    })
+    $enterDataForm.Controls.Add($submitButton)
+
+    # Back button
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(200, 140)
+    $backButton.Size = New-Object System.Drawing.Size(75, 23)
+    $backButton.Text = 'Back'
+    $backButton.Add_Click({
+        $enterDataForm.Close()
+        Show-HomeScreen
+    })
+    $enterDataForm.Controls.Add($backButton)
+
+
+    $enterDataForm.ShowDialog()
+}
+
+# --- View Data Screen ---
+function Show-ViewDataScreen {
+    $viewDataForm = New-Object System.Windows.Forms.Form
+    $viewDataForm.Text = 'View Data'
+    $viewDataForm.Size = New-Object System.Drawing.Size(400, 300)
+    $viewDataForm.StartPosition = 'CenterScreen'
+
+    # Data Grid View
+    $dataGridView = New-Object System.Windows.Forms.DataGridView
+    $dataGridView.Location = New-Object System.Drawing.Point(20, 20)
+    $dataGridView.Size = New-Object System.Drawing.Size(340, 200)
+    $dataGridView.DataSource = $Global:data
+    $viewDataForm.Controls.Add($dataGridView)
+
+    # Back button
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(150, 230)
+    $backButton.Size = New-Object System.Drawing.Size(75, 23)
+    $backButton.Text = 'Back'
+    $backButton.Add_Click({
+        $viewDataForm.Close()
+        Show-HomeScreen
+    })
+    $viewDataForm.Controls.Add($backButton)
+
+    $viewDataForm.ShowDialog()
+}
+
+# Start the application
+Show-HomeScreen
+
