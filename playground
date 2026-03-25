@@ -308,80 +308,65 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
 }
 
 function Show-PocDataViewScreen($parentForm, $operation) {
-    # MODIFIED: Added a second filter for Location.
+    # MODIFIED: The Location filter now uses the definitive hardcoded list to ensure all options appear.
     $viewDataForm = New-Object System.Windows.Forms.Form
     $viewDataForm.Text = "POC Hours Summary ($operation)"
-    $viewDataForm.Size = New-Object System.Drawing.Size(840, 480) # Made form wider for new filter
+    $viewDataForm.Size = New-Object System.Drawing.Size(840, 480)
     $viewDataForm.StartPosition = 'CenterScreen'
     $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
     # --- FILTER CONTROLS ---
     $labelYearFilter = New-Object System.Windows.Forms.Label; $labelYearFilter.Location = New-Object System.Drawing.Point(20, 15); $labelYearFilter.Size = New-Object System.Drawing.Size(100, 20); $labelYearFilter.Text = "Filter by Year:"; $labelYearFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($labelYearFilter)
     $yearComboBox = New-Object System.Windows.Forms.ComboBox; $yearComboBox.Location = New-Object System.Drawing.Point(130, 12); $yearComboBox.Size = New-Object System.Drawing.Size(100, 25); $yearComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $viewDataForm.Controls.Add($yearComboBox)
-
-    # ADDED: Location Filter
     $labelLocationFilter = New-Object System.Windows.Forms.Label; $labelLocationFilter.Location = New-Object System.Drawing.Point(250, 15); $labelLocationFilter.Size = New-Object System.Drawing.Size(120, 20); $labelLocationFilter.Text = "Filter by Location:"; $labelLocationFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($labelLocationFilter)
     $locationComboBox = New-Object System.Windows.Forms.ComboBox; $locationComboBox.Location = New-Object System.Drawing.Point(380, 12); $locationComboBox.Size = New-Object System.Drawing.Size(220, 25); $locationComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $viewDataForm.Controls.Add($locationComboBox)
 
     # --- DATA GRID VIEW ---
-    # Increased width to fit the wider form
     $dataGridView = New-Object System.Windows.Forms.DataGridView; $dataGridView.Location = New-Object System.Drawing.Point(20, 50); $dataGridView.Size = New-Object System.Drawing.Size(780, 320); $dataGridView.AllowUserToAddRows = $false; $dataGridView.ReadOnly = $true; $dataGridView.AutoSizeColumnsMode = 'AllCells'; $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10); $dataGridView.RowHeadersVisible = $false; $dataGridView.Columns.Add("Cutter", "Cutter"); $dataGridView.Columns.Add("VA", "VA"); $dataGridView.Columns.Add("DA", "DA"); $dataGridView.Columns.Add("PI", "PI"); $dataGridView.Columns.Add("MC", "MC"); $dataGridView.Columns.Add("Total", "Cutter Total"); $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($dataGridView)
     
     # --- Logic to Update Table ---
     $updateTable = {
         $dataGridView.Rows.Clear()
-        
         $allCutters = (Get-CutterOperations).Keys | Sort-Object
         $operationEntries = Get-PocHourEntries -operation $operation
-        
-        # --- APPLY FILTERS ---
-        $selectedYear = $yearComboBox.SelectedItem
-        $selectedLocation = $locationComboBox.SelectedItem
+        $selectedYear = $yearComboBox.SelectedItem; $selectedLocation = $locationComboBox.SelectedItem
         $filteredEntries = $operationEntries
-
-        # Apply Year Filter
-        if ($selectedYear -and $selectedYear -ne "All Years") {
-            $filteredEntries = $filteredEntries | Where-Object { $_.EventDate.Year -eq $selectedYear }
-        }
-        # Apply Location Filter
-        if ($selectedLocation -and $selectedLocation -ne "All Locations") {
-            $filteredEntries = $filteredEntries | Where-Object { $_.Location -eq $selectedLocation }
-        }
-        
+        if ($selectedYear -and $selectedYear -ne "All Years") { $filteredEntries = $filteredEntries | Where-Object { $_.EventDate.Year -eq $selectedYear } }
+        if ($selectedLocation -and $selectedLocation -ne "All Locations") { $filteredEntries = $filteredEntries | Where-Object { $_.Location -eq $selectedLocation } }
         $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum }
         $columnTotals = @{ "VA" = 0; "DA" = 0; "PI" = 0; "MC" = 0 }
-        
         foreach ($cutter in $allCutters) {
             $va_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "VA"; $da_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "DA"; $pi_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "PI"; $mc_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "MC"
             $rowTotal = $va_total + $da_total + $pi_total + $mc_total
             $dataGridView.Rows.Add($cutter, $va_total, $da_total, $pi_total, $mc_total, $rowTotal)
             $columnTotals["VA"] += $va_total; $columnTotals["DA"] += $da_total; $columnTotals["PI"] += $pi_total; $columnTotals["MC"] += $mc_total
         }
-        
         $grandTotal = $columnTotals.Values | Measure-Object -Sum | Select-Object -ExpandProperty Sum
         $dataGridView.Rows.Add("TOTALS", $columnTotals["VA"], $columnTotals["DA"], $columnTotals["PI"], $columnTotals["MC"], $grandTotal)
         $totalsRow = $dataGridView.Rows[$dataGridView.Rows.Count - 1]; $totalsRow.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $totalsRow.DefaultCellStyle.BackColor = [System.Drawing.Color]::LightGray
     }
 
     # --- EVENT HANDLERS ---
-    # Both dropdowns will now trigger the table update.
     $yearComboBox.add_SelectedIndexChanged({ &$updateTable })
     $locationComboBox.add_SelectedIndexChanged({ &$updateTable })
     
     $viewDataForm.add_Load({
-        # Get all entries for the current operation scope to populate filters
-        $allOperationEntries = Get-PocHourEntries -operation $operation
-
         # Populate Year Filter
         $currentYear = (Get-Date).Year
-        $allYears = ($allOperationEntries | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
+        $allYears = (Get-PocHourEntries -operation $operation | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
         $yearComboBox.Items.Clear(); $yearComboBox.Items.Add("All Years")
         if ($allYears) { $yearComboBox.Items.AddRange($allYears) }
         if ($yearComboBox.Items.Contains($currentYear)) { $yearComboBox.SelectedItem = $currentYear } else { $yearComboBox.SelectedIndex = 0 }
         
-        # Populate Location Filter
-        $allLocations = ($allOperationEntries | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Location) } | Select-Object -ExpandProperty Location -Unique | Sort-Object)
+        # CORRECTED: Populate Location Filter with the definitive, hardcoded list.
         $locationComboBox.Items.Clear(); $locationComboBox.Items.Add("All Locations")
+        $allLocations = if ($operation -eq "Operation TACONITE") { 
+            @("Thunder Bay, MI", "Straits of Mackinac", "Lake Huron", "Green Bay", "Lake Michigan", "St. Marys River", "Georgian Bay", "North Channel", "Alpena", "Cheboygan", "Charlevoix", "Grand Traverse Bay", "Whitefish Bay", "Eastern Lake Superior", "Marquette", "Central Lake Superior", "Keweenaw", "Duluth, Superior", "Western Lake Superior", "Two Harbors", "Silver Bay", "Apostle Islands", "Thunder Bay, ON", "Escanaba", "Marinette", "Lake Michigan-West Milwaukee", "Lake Michigan-South Calumet-Gary-Indiana Harbor", "Lake Michigan-East Ludington")
+        } elseif ($operation -eq "Operation COAL SHOVEL") { 
+            @("Lake St. Claire", "St. Claire River", "Lake Erie") 
+        } else { # For "All Operations"
+            @("Thunder Bay, MI", "Straits of Mackinac", "Lake Huron", "Green Bay", "Lake Michigan", "St. Marys River", "Georgian Bay", "North Channel", "Alpena", "Cheboygan", "Charlevoix", "Grand Traverse Bay", "Whitefish Bay", "Eastern Lake Superior", "Marquette", "Central Lake Superior", "Keweenaw", "Duluth, Superior", "Western Lake Superior", "Two Harbors", "Silver Bay", "Apostle Islands", "Thunder Bay, ON", "Escanaba", "Marinette", "Lake Michigan-West Milwaukee", "Lake Michigan-South Calumet-Gary-Indiana Harbor", "Lake Michigan-East Ludington", "Lake St. Claire", "St. Claire River", "Lake Erie") | Sort-Object -Unique
+        }
         if ($allLocations) { $locationComboBox.Items.AddRange($allLocations) }
         $locationComboBox.SelectedIndex = 0
 
@@ -395,12 +380,7 @@ function Show-PocDataViewScreen($parentForm, $operation) {
     $viewDataForm.ShowDialog()
 }
 
-
-function Show-LoginForm {
-    $form = New-Object System.Windows.Forms.Form; $form.Text = 'Taconite App - Login'; $form.Size = New-Object System.Drawing.Size(300,230); $form.StartPosition = 'CenterScreen'
- function Show-PocDataViewScreen($parentForm, $operation) {
-    # MODIFIED: The Location filter now uses the definitive hardcoded list to ensure all options appear.
-    $viewDataForm = New-Object System.Windows.Forms.Form
+ $viewDataForm = New-Object System.Windows.Forms.Form
     $viewDataForm.Text = "POC Hours Summary ($operation)"
     $viewDataForm.Size = New-Object System.Drawing.Size(840, 480)
     $viewDataForm.StartPosition = 'CenterScreen'
