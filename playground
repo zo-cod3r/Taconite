@@ -12,6 +12,9 @@ $cutterLogPath = "$PSScriptRoot\cutter_movements_log.txt"
 $cutterStatusPath = "$PSScriptRoot\cutter_status.txt"
 $pocHoursPath = "$PSScriptRoot\poc_hours.txt"
 $operationsFilePath = "$PSScriptRoot\cutter_operations.txt" # File for operation assignments
+$pocHoursTaconitePath = "$PSScriptRoot\poc_hours_taconite.txt"
+$pocHoursCoalShovelPath = "$PSScriptRoot\poc_hours_coalshovel.txt"
+
 
 # 3. Helper Functions (Data Management)
 
@@ -45,31 +48,39 @@ function Log-CutterUpdate($username, $vessel, $newStatus) {
 }
 
 function Save-PocHourEntry($username, $eventDate, $operation, $cutter, $hourType, $hours) {
-    # MODIFIED: Now accepts and saves the operation name.
+    # MODIFIED: Writes to a different file based on the operation.
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $eventDateString = $eventDate.ToString("yyyy-MM-dd")
 
-    # NEW FORMAT: TIMESTAMP|USER|EVENT_DATE|OPERATION|CUTTER|HOUR_TYPE|HOURS
-    $logEntry = "$timestamp|$username|$eventDateString|$operation|$cutter|$hourType|$hours"
-    Add-Content -Path $pocHoursPath -Value $logEntry
+    # The data format no longer includes the operation name in the string.
+    # FORMAT: TIMESTAMP|USER|EVENT_DATE|CUTTER|HOUR_TYPE|HOURS
+    $logEntry = "$timestamp|$username|$eventDateString|$cutter|$hourType|$hours"
+
+    # Choose the correct file path based on the operation.
+    $targetPath = if ($operation -eq "Operation TACONITE") { $pocHoursTaconitePath } else { $pocHoursCoalShovelPath }
+    
+    Add-Content -Path $targetPath -Value $logEntry
 }
 
-function Get-PocHourEntries {
-    # MODIFIED: Reads the new 7-column file format.
+function Get-PocHourEntries($operation) {
+    # MODIFIED: Reads from a different file based on the operation.
     $entries = New-Object System.ComponentModel.BindingList[PSObject]
-    if (Test-Path $pocHoursPath) {
-        Get-Content $pocHoursPath | ForEach-Object {
-            # NEW FORMAT: TIMESTAMP|USER|EVENT_DATE|OPERATION|CUTTER|HOUR_TYPE|HOURS
+    
+    # Choose the correct file path to read from.
+    $targetPath = if ($operation -eq "Operation TACONITE") { $pocHoursTaconitePath } else { $pocHoursCoalShovelPath }
+
+    if (Test-Path $targetPath) {
+        Get-Content $targetPath | ForEach-Object {
+            # The format is now 6 columns again.
             $parts = $_ -split '\|'
-            if ($parts.Length -eq 7) { # Now expecting 7 parts
+            if ($parts.Length -eq 6) {
                 $entry = [PSCustomObject]@{
                     Timestamp = $parts[0].Trim()
                     User      = $parts[1].Trim()
                     EventDate = [datetime]$parts[2].Trim()
-                    Operation = $parts[3].Trim() # Added Operation property
-                    Cutter    = $parts[4].Trim()
-                    HourType  = $parts[5].Trim()
-                    Hours     = [double]$parts[6].Trim()
+                    Cutter    = $parts[3].Trim()
+                    HourType  = $parts[4].Trim()
+                    Hours     = [double]$parts[5].Trim()
                 }
                 $entries.Add($entry)
             }
@@ -77,6 +88,7 @@ function Get-PocHourEntries {
     }
     return $entries
 }
+
 
 function Get-CutterStatuses {
     $statuses = @{}
@@ -517,27 +529,31 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
 }
 
 function Show-PocDataViewScreen($parentForm, $operation) {
-    # MODIFIED: Accepts an $operation parameter to filter all data displayed.
+    # MODIFIED: Always shows all cutters, but populates data based on the selected operation.
     $viewDataForm = New-Object System.Windows.Forms.Form
     $viewDataForm.Text = "POC Hours Summary ($operation)"
     $viewDataForm.Size = New-Object System.Drawing.Size(640, 480)
     $viewDataForm.StartPosition = 'CenterScreen'
     $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
+    # --- UI Controls (unchanged) ---
     $labelYearFilter = New-Object System.Windows.Forms.Label; $labelYearFilter.Location = New-Object System.Drawing.Point(20, 15); $labelYearFilter.Size = New-Object System.Drawing.Size(100, 20); $labelYearFilter.Text = "Filter by Year:"; $labelYearFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($labelYearFilter)
     $yearComboBox = New-Object System.Windows.Forms.ComboBox; $yearComboBox.Location = New-Object System.Drawing.Point(130, 12); $yearComboBox.Size = New-Object System.Drawing.Size(100, 25); $yearComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $viewDataForm.Controls.Add($yearComboBox)
-    
     $dataGridView = New-Object System.Windows.Forms.DataGridView; $dataGridView.Location = New-Object System.Drawing.Point(20, 50); $dataGridView.Size = New-Object System.Drawing.Size(580, 320); $dataGridView.AllowUserToAddRows = $false; $dataGridView.ReadOnly = $true; $dataGridView.AutoSizeColumnsMode = 'AllCells'; $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10); $dataGridView.RowHeadersVisible = $false; $dataGridView.Columns.Add("Cutter", "Cutter"); $dataGridView.Columns.Add("VA", "VA"); $dataGridView.Columns.Add("DA", "DA"); $dataGridView.Columns.Add("PI", "PI"); $dataGridView.Columns.Add("MC", "MC"); $dataGridView.Columns.Add("Total", "Cutter Total"); $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($dataGridView)
     
+    # --- Logic to Update Table ---
     $updateTable = {
         param($filteredYear)
         $dataGridView.Rows.Clear()
         
+        # MODIFICATION: Always get the complete list of ALL cutters.
         $allAssignments = Get-CutterOperations
-        $cuttersForOperation = $allAssignments.GetEnumerator() | Where-Object { $_.Value -eq $operation } | ForEach-Object { $_.Name } | Sort-Object
+        $allCutters = $allAssignments.Keys | Sort-Object
 
-        $operationEntries = Get-PocHourEntries | Where-Object { $_.Operation -eq $operation }
+        # MODIFICATION: Get entries only for the specified operation by calling the updated helper function.
+        $operationEntries = Get-PocHourEntries -operation $operation
 
+        # Apply the year filter to the operation's entries.
         if ($filteredYear -and $filteredYear -ne "All Years") {
             $filteredEntries = $operationEntries | Where-Object { $_.EventDate.Year -eq $filteredYear }
         } else {
@@ -547,7 +563,9 @@ function Show-PocDataViewScreen($parentForm, $operation) {
         $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum }
         $columnTotals = @{ "VA" = 0; "DA" = 0; "PI" = 0; "MC" = 0 }
         
-        foreach ($cutter in $cuttersForOperation) {
+        # MODIFICATION: Loop through ALL cutters, regardless of their current assignment.
+        foreach ($cutter in $allCutters) {
+            # The data source ($filteredEntries) is already specific to the operation.
             $va_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "VA"
             $da_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "DA"
             $pi_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "PI"
@@ -562,11 +580,13 @@ function Show-PocDataViewScreen($parentForm, $operation) {
         $totalsRow = $dataGridView.Rows[$dataGridView.Rows.Count - 1]; $totalsRow.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $totalsRow.DefaultCellStyle.BackColor = [System.Drawing.Color]::LightGray
     }
 
+    # --- Event Handlers ---
     $yearComboBox.add_SelectedIndexChanged({ &$updateTable -filteredYear $yearComboBox.SelectedItem })
     
     $viewDataForm.add_Load({
         $currentYear = (Get-Date).Year
-        $allYears = (Get-PocHourEntries | Where-Object { $_.Operation -eq $operation } | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
+        # MODIFICATION: Populate year filter based on the correct operation-specific data file.
+        $allYears = (Get-PocHourEntries -operation $operation | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
         $yearComboBox.Items.Clear()
         $yearComboBox.Items.Add("All Years")
         if ($allYears) { $yearComboBox.Items.AddRange($allYears) }
@@ -579,6 +599,7 @@ function Show-PocDataViewScreen($parentForm, $operation) {
         &$updateTable -filteredYear $yearComboBox.SelectedItem
     })
 
+    # --- Back Button ---
     $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(265, 385); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $viewDataForm.Controls.Add($backButton); $viewDataForm.CancelButton = $backButton
     
     $viewDataForm.ShowDialog()
