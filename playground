@@ -136,6 +136,84 @@ function Show-CutterMovements($parentForm, $currentUser) {
     }); $cutterForm.Add_Load({ &$rebuildDisplay }); $cutterForm.ShowDialog()
 }
 
+function Show-VmrCenter($parentForm, $currentUser) {
+    # Creates and displays the new VMR Center screen.
+    $vmrForm = New-Object System.Windows.Forms.Form
+    $vmrForm.Text = 'VMR Center'
+    $vmrForm.Size = New-Object System.Drawing.Size(340, 420)
+    $vmrForm.StartPosition = 'CenterScreen'
+    $vmrForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # --- TITLE ---
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
+    $titleLabel.Size = New-Object System.Drawing.Size(340, 30)
+    $titleLabel.Text = "VMR CENTER"
+    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $vmrForm.Controls.Add($titleLabel)
+
+    # --- DIVIDER ---
+    $divider1 = New-Object System.Windows.Forms.Panel
+    $divider1.Location = New-Object System.Drawing.Point(40, 60)
+    $divider1.Size = New-Object System.Drawing.Size(260, 2)
+    $divider1.BackColor = [System.Drawing.Color]::LightGray
+    $vmrForm.Controls.Add($divider1)
+
+    # --- BUTTONS ---
+    $uploadVmrButton = New-Object System.Windows.Forms.Button
+    $uploadVmrButton.Location = New-Object System.Drawing.Point(70, 90)
+    $uploadVmrButton.Size = New-Object System.Drawing.Size(200, 50)
+    $uploadVmrButton.Text = "Upload VMRs"
+    $uploadVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $uploadVmrButton.BackColor = [System.Drawing.Color]::SeaGreen
+    $uploadVmrButton.ForeColor = [System.Drawing.Color]::White
+    $vmrForm.Controls.Add($uploadVmrButton)
+
+    $vesselArrivalsButton = New-Object System.Windows.Forms.Button
+    $vesselArrivalsButton.Location = New-Object System.Drawing.Point(40, 170)
+    $vesselArrivalsButton.Size = New-Object System.Drawing.Size(120, 120)
+    $vesselArrivalsButton.Text = "Vessel Arrivals"
+    $vesselArrivalsButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $vesselArrivalsButton.BackColor = [System.Drawing.Color]::SteelBlue
+    $vesselArrivalsButton.ForeColor = [System.Drawing.Color]::White
+    $vmrForm.Controls.Add($vesselArrivalsButton)
+    
+    $serviceRequestsButton = New-Object System.Windows.Forms.Button
+    $serviceRequestsButton.Location = New-Object System.Drawing.Point(180, 170)
+    $serviceRequestsButton.Size = New-Object System.Drawing.Size(120, 120)
+    $serviceRequestsButton.Text = "Service Requests"
+    $serviceRequestsButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $serviceRequestsButton.BackColor = [System.Drawing.Color]::SteelBlue
+    $serviceRequestsButton.ForeColor = [System.Drawing.Color]::White
+    $vmrForm.Controls.Add($serviceRequestsButton)
+
+    # --- DIVIDER ---
+    $divider2 = New-Object System.Windows.Forms.Panel
+    $divider2.Location = New-Object System.Drawing.Point(40, 320)
+    $divider2.Size = New-Object System.Drawing.Size(260, 2)
+    $divider2.BackColor = [System.Drawing.Color]::LightGray
+    $vmrForm.Controls.Add($divider2)
+    
+    # --- BACK BUTTON ---
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(125, 340)
+    $backButton.Size = New-Object System.Drawing.Size(90, 30)
+    $backButton.Text = 'Back'
+    $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $vmrForm.CancelButton = $backButton
+    $vmrForm.Controls.Add($backButton)
+
+    # --- CLICK EVENTS (with placeholders) ---
+    $uploadVmrButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("Upload VMRs clicked - feature coming soon!", "Coming Soon") })
+    $vesselArrivalsButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("Vessel Arrivals clicked - feature coming soon!", "Coming Soon") })
+    $serviceRequestsButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("Service Requests clicked - feature coming soon!", "Coming Soon") })
+    
+    $vmrForm.ShowDialog()
+}
+
+
 function Show-PocSelectionScreen($parentForm, $currentUser) {
     $selectionForm = New-Object System.Windows.Forms.Form; $selectionForm.Text = 'Taconite App - Cutter POCs'; $selectionForm.Size = New-Object System.Drawing.Size(500, 380); $selectionForm.StartPosition = 'CenterScreen'; $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
     $taconiteHeader = New-Object System.Windows.Forms.Label; $taconiteHeader.Location = New-Object System.Drawing.Point(0, 20); $taconiteHeader.Size = New-Object System.Drawing.Size(250, 30); $taconiteHeader.Text = "TACONITE"; $taconiteHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $taconiteHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $selectionForm.Controls.Add($taconiteHeader)
@@ -163,7 +241,8 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
     $labelHeaderHourType = New-Object System.Windows.Forms.Label; $labelHeaderHourType.Text = "Hour Type"; $labelHeaderHourType.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHourType.Location = New-Object System.Drawing.Point(460, 5); $labelHeaderHourType.Size = New-Object System.Drawing.Size(80, 20); $headerPanel.Controls.Add($labelHeaderHourType)
     $labelHeaderHours = New-Object System.Windows.Forms.Label; $labelHeaderHours.Text = "Hours"; $labelHeaderHours.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHours.Location = New-Object System.Drawing.Point(550, 5); $labelHeaderHours.Size = New-Object System.Drawing.Size(60, 20); $headerPanel.Controls.Add($labelHeaderHours)
     $mainPanel = New-Object System.Windows.Forms.Panel; $mainPanel.Location = New-Object System.Drawing.Point(10, 130); $mainPanel.Size = New-Object System.Drawing.Size(880, 270); $mainPanel.AutoScroll = $true; $mainPanel.BorderStyle = 'FixedSingle'; $entryForm.Controls.Add($mainPanel)
-    $rowControls = [System.Collections.ArrayList]@(); $currentY = 10
+    $rowControls = [System.Collections.ArrayList]@()
+    $currentY = 10
     $addRow = {
         param([System.Windows.Forms.Panel]$panel, [System.Collections.ArrayList]$controlsList, [ref]$yPosition)
         $rowPanel = New-Object System.Windows.Forms.Panel; $rowPanel.Location = New-Object System.Drawing.Point(10, $yPosition.Value); $rowPanel.Size = New-Object System.Drawing.Size(850, 40); $panel.Controls.Add($rowPanel)
@@ -253,7 +332,8 @@ function Show-LoginForm {
             $tbdButton = New-Object System.Windows.Forms.Button; $tbdButton.Location = New-Object System.Drawing.Point(210,205); $tbdButton.Size = New-Object System.Drawing.Size(130,60); $tbdButton.Text = 'TBD'; $tbdButton.Font = New-Object System.Drawing.Font("Arial", 13, [System.Drawing.FontStyle]::Bold); $tbdButton.BackColor = [System.Drawing.Color]::IndianRed; $tbdButton.ForeColor = [System.Drawing.Color]::White; $tbdButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; $tbdButton.FlatAppearance.BorderSize = 0; $homeForm.Controls.Add($tbdButton)
             $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40,290); $divider2.Size = New-Object System.Drawing.Size(300,2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $homeForm.Controls.Add($divider2)
             $logoutButton = New-Object System.Windows.Forms.Button; $logoutButton.Location = New-Object System.Drawing.Point(140,310); $logoutButton.Size = New-Object System.Drawing.Size(100,35); $logoutButton.Text = 'Log Out'; $logoutButton.Font = New-Object System.Drawing.Font("Arial", 10); $logoutButton.BackColor = [System.Drawing.Color]::DimGray; $logoutButton.ForeColor = [System.Drawing.Color]::White; $logoutButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; $logoutButton.FlatAppearance.BorderSize = 0; $homeForm.Controls.Add($logoutButton)
-            $vmrButton.Add_Click({ Show-VmrCenter $homeForm $username }); $cutterButton.Add_Click({ Show-CutterMovements $homeForm $username }); $pocsButton.Add_Click({ Show-PocSelectionScreen $homeForm $username }); $tbdButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("TBD clicked - feature coming soon!", "TBD") })
+          # MODIFIED: Calls the new VMR Center screen.
+$vmrButton.Add_Click({ Show-VmrCenter $homeForm $username }); $cutterButton.Add_Click({ Show-CutterMovements $homeForm $username }); $pocsButton.Add_Click({ Show-PocSelectionScreen $homeForm $username }); $tbdButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("TBD clicked - feature coming soon!", "TBD") })
             $logoutButton.Add_Click({ Log-Attempt $username "" "LOGGED OUT"; $homeForm.Hide(); [System.Windows.Forms.MessageBox]::Show("You have successfully logged out.", "Logged Out"); $homeForm.Close(); Show-LoginForm }); $homeForm.ShowDialog(); $form.Close()
         } else { Log-Attempt $username $password "FAILED"; $statusLabel.Text = 'Invalid username or password.' }
     }); $createButton.Add_Click({
@@ -265,4 +345,5 @@ function Show-LoginForm {
 }
 
 # 5. Start the Application
+
 Show-LoginForm
