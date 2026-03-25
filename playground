@@ -1,124 +1,134 @@
 # TACONITE APP - FULLY UPDATED
 
-# 1. Load Assemblies
-Add-Type -AssemblyName System.Windows.Forms;
-Add-Type -AssemblyName System.Drawing;
-# ADDED: Assembly for BindingList
-Add-Type -AssemblyName System.ComponentModel;
+# 1. Load Required .NET Assemblies
+# These assemblies provide the necessary classes for creating Windows Forms GUI elements.
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.ComponentModel # Required for BindingList in the data grid view
 
+# 2. Define Global File Paths
+# Using $PSScriptRoot makes the script portable, as it bases all file paths
+# on the location of the script itself.
+$logFilePath = "$PSScriptRoot\taconite_log.txt"
+$accountsFilePath = "$PSScriptRoot\taconite_accounts.txt"
+$cutterLogPath = "$PSScriptRoot\cutter_movements_log.txt"
+$cutterStatusPath = "$PSScriptRoot\cutter_status.txt"
+$pocHoursPath = "$PSScriptRoot\poc_hours.txt"
 
-# 2. Define File Paths
-$logFilePath = "$PSScriptRoot\taconite_log.txt";
-$accountsFilePath = "$PSScriptRoot\taconite_accounts.txt";
-$cutterLogPath = "$PSScriptRoot\cutter_movements_log.txt";
-$cutterStatusPath = "$PSScriptRoot\cutter_status.txt";
-$pocHoursPath = "$PSScriptRoot\poc_hours.txt";
+# 3. Helper Functions (Data Management)
 
-
-# 3. Helper Functions
 function Get-Accounts {
-    $accounts = @{};
+    # Reads the accounts file and returns a hashtable of username-password pairs.
+    $accounts = @{}
     if (Test-Path $accountsFilePath) {
         Get-Content $accountsFilePath | ForEach-Object {
-            $parts = $_ -split "\|";
+            $parts = $_ -split "\|"
             if ($parts.Length -eq 2) {
-                $accounts[$parts[0].Trim()] = $parts[1].Trim();
+                $accounts[$parts[0].Trim()] = $parts[1].Trim()
             }
         }
     }
-    return $accounts;
+    return $accounts
 }
 
 function Save-Account($username, $password) {
-    Add-Content -Path $accountsFilePath -Value "$username|$password";
+    # Appends a new user account to the accounts file.
+    Add-Content -Path $accountsFilePath -Value "$username|$password"
 }
 
 function Log-Attempt($username, $password, $status) {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss";
-    $logEntry = "[$timestamp] Username: $username | Password: $password | Status: $status";
-    Add-Content -Path $logFilePath -Value $logEntry;
+    # Logs a login, logout, or account creation attempt to the main log file.
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] Username: $username | Password: $password | Status: $status"
+    Add-Content -Path $logFilePath -Value $logEntry
 }
 
 function Log-CutterUpdate($username, $vessel, $newStatus) {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss";
-    $logEntry = "[$timestamp] User: $username | Vessel: $vessel | Updated Status To: $newStatus";
-    Add-Content -Path $cutterLogPath -Value $logEntry;
+    # Logs when a user updates a cutter's status.
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] User: $username | Vessel: $vessel | Updated Status To: $newStatus"
+    Add-Content -Path $cutterLogPath -Value $logEntry
 }
 
-function Save-PocHourEntry($username, $cutter, $hourType, $hours) {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss";
-    # Format: TIMESTAMP|USER|CUTTER|HOUR_TYPE|HOURS
-    $logEntry = "$timestamp|$username|$cutter|$hourType|$hours";
-    Add-Content -Path $pocHoursPath -Value $logEntry;
+function Save-PocHourEntry($username, $eventDate, $cutter, $hourType, $hours) {
+    # Saves a new POC hour entry with the specific date the hours occurred.
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss" # This is the entry timestamp
+    $eventDateString = $eventDate.ToString("yyyy-MM-dd") # Format the event date consistently
+
+    # MODIFIED FORMAT: TIMESTAMP|USER|EVENT_DATE|CUTTER|HOUR_TYPE|HOURS
+    $logEntry = "$timestamp|$username|$eventDateString|$cutter|$hourType|$hours"
+    Add-Content -Path $pocHoursPath -Value $logEntry
 }
 
-# ADDED: New function to read all POC Hour entries from the data file.
 function Get-PocHourEntries {
-    $entries = New-Object System.ComponentModel.BindingList[PSObject];
+    # MODIFIED: Reads the new file format with 6 columns.
+    $entries = New-Object System.ComponentModel.BindingList[PSObject]
     if (Test-Path $pocHoursPath) {
         Get-Content $pocHoursPath | ForEach-Object {
-            # Format: TIMESTAMP|USER|CUTTER|HOUR_TYPE|HOURS
-            $parts = $_ -split '\|';
-            if ($parts.Length -eq 5) {
+            # MODIFIED FORMAT: TIMESTAMP|USER|EVENT_DATE|CUTTER|HOUR_TYPE|HOURS
+            $parts = $_ -split '\|'
+            if ($parts.Length -eq 6) { # Now expecting 6 parts
                 $entry = [PSCustomObject]@{
-                    Timestamp = $parts[0].Trim();
-                    User      = $parts[1].Trim();
-                    Cutter    = $parts[2].Trim();
-                    HourType  = $parts[3].Trim();
-                    Hours     = [double]$parts[4].Trim(); # Ensure hours are treated as numbers
-                };
-                $entries.Add($entry);
+                    Timestamp = $parts[0].Trim()
+                    User      = $parts[1].Trim()
+                    EventDate = [datetime]$parts[2].Trim() # Store as a datetime object
+                    Cutter    = $parts[3].Trim()
+                    HourType  = $parts[4].Trim()
+                    Hours     = [double]$parts[5].Trim()
+                }
+                $entries.Add($entry)
             }
         }
     }
-    return $entries;
+    return $entries
 }
 
-
 function Get-CutterStatuses {
-    $statuses = @{};
+    # Reads the cutter status file and returns a hashtable with the latest status for each vessel.
+    $statuses = @{}
     if (Test-Path $cutterStatusPath) {
         Get-Content $cutterStatusPath | ForEach-Object {
-            # Format: VESSEL|STATUS|TIMESTAMP|USER
-            $parts = $_ -split "\|", 4;
+            # File Format: VESSEL|STATUS|TIMESTAMP|USER
+            $parts = $_ -split "\|", 4
             if ($parts.Length -eq 4) {
                 $statuses[$parts[0].Trim()] = @{
-                    Status    = $parts[1].Trim();
-                    Timestamp = $parts[2].Trim();
-                    User      = $parts[3].Trim();
-                };
+                    Status    = $parts[1].Trim()
+                    Timestamp = $parts[2].Trim()
+                    User      = $parts[3].Trim()
+                }
             }
         }
     }
-    return $statuses;
+    return $statuses
 }
 
 function Save-CutterStatus($vessel, $status, $currentUser) {
-    $statuses = Get-CutterStatuses;
-    $timestamp = Get-Date -Format "MM/dd/yy HH:mm";
-    # Update or add the new status object
-    $statuses[$vessel] = @{
-        Status    = $status;
-        Timestamp = $timestamp;
-        User      = $currentUser;
-    };
+    # Updates a vessel's status and rewrites the entire status file.
+    $statuses = Get-CutterStatuses
+    $timestamp = Get-Date -Format "MM/dd/yy HH:mm"
     
-    # Rewrite entire file with updated statuses in the new format
-    $lines = @();
-    # Sort keys to maintain a consistent file order
-    $sortedKeys = $statuses.Keys | Sort-Object;
-    foreach ($key in $sortedKeys) {
-        $statusEntry = $statuses[$key];
-        $lines += "$key|$($statusEntry.Status)|$($statusEntry.Timestamp)|$($statusEntry.User)";
+    # Update or add the new status object in the hashtable
+    $statuses[$vessel] = @{
+        Status    = $status
+        Timestamp = $timestamp
+        User      = $currentUser
     }
-    Set-Content -Path $cutterStatusPath -Value $lines;
+    
+    # Rewrite the entire file with updated statuses to ensure consistency.
+    $lines = @()
+    # Sort keys to maintain a consistent order in the file.
+    $sortedKeys = $statuses.Keys | Sort-Object
+    foreach ($key in $sortedKeys) {
+        $statusEntry = $statuses[$key]
+        $lines += "$key|$($statusEntry.Status)|$($statusEntry.Timestamp)|$($statusEntry.User)"
+    }
+    Set-Content -Path $cutterStatusPath -Value $lines
 }
-
 
 # 4. GUI Screen Functions
 
 function Show-CutterMovements($parentForm, $currentUser) {
-    # This function remains unchanged...
+    # This function defines the UI and logic for the Cutter Movements screen.
     $cutterForm = New-Object System.Windows.Forms.Form
     $cutterForm.Text = 'Taconite App - Cutter Movements'
     $cutterForm.Size = New-Object System.Drawing.Size(620,620)
@@ -261,30 +271,36 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray;
         [System.Windows.Forms.MessageBox]::Show("Status for $selectedVessel updated successfully!", "Status Updated", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information);
     });
-    $cutterForm.ShowDialog();
+    $cutterForm.ShowDialog()
 }
 
 function Show-PocDataEntryScreen($parentForm, $currentUser) {
-    # This function remains unchanged...
+    # MODIFIED: Increased form width for the new date field.
     $entryForm = New-Object System.Windows.Forms.Form
     $entryForm.Text = 'Taconite App - POC Hour Entry'
-    $entryForm.Size = New-Object System.Drawing.Size(460, 320)
+    $entryForm.Size = New-Object System.Drawing.Size(580, 320) # Made form wider
     $entryForm.StartPosition = 'CenterScreen'
     $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # --- Title and Divider ---
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
-    $titleLabel.Size = New-Object System.Drawing.Size(460, 30)
+    $titleLabel.Size = New-Object System.Drawing.Size(580, 30)
     $titleLabel.Text = "POC HOUR ENTRY"
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $entryForm.Controls.Add($titleLabel)
     $divider = New-Object System.Windows.Forms.Panel
     $divider.Location = New-Object System.Drawing.Point(30, 60)
-    $divider.Size = New-Object System.Drawing.Size(380, 2)
+    $divider.Size = New-Object System.Drawing.Size(500, 2)
     $divider.BackColor = [System.Drawing.Color]::LightGray
     $entryForm.Controls.Add($divider)
-    $cutters = @( "CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY" )
+
+    # --- Input Fields ---
+    $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
     $hourTypes = @("VA", "DA", "PI", "MC")
+
+    # Cutter Label and Dropdown
     $labelCutter = New-Object System.Windows.Forms.Label
     $labelCutter.Location = New-Object System.Drawing.Point(30, 80)
     $labelCutter.Size = New-Object System.Drawing.Size(120, 20)
@@ -299,34 +315,54 @@ function Show-PocDataEntryScreen($parentForm, $currentUser) {
     $vesselDropdown.Items.AddRange($cutters)
     $vesselDropdown.SelectedIndex = 0
     $entryForm.Controls.Add($vesselDropdown)
+
+    # ADDED: Event Date Label and DateTimePicker
+    $labelEventDate = New-Object System.Windows.Forms.Label
+    $labelEventDate.Location = New-Object System.Drawing.Point(230, 80)
+    $labelEventDate.Size = New-Object System.Drawing.Size(150, 20)
+    $labelEventDate.Text = "Date of Hours:"
+    $labelEventDate.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $entryForm.Controls.Add($labelEventDate)
+    $datePicker = New-Object System.Windows.Forms.DateTimePicker
+    $datePicker.Location = New-Object System.Drawing.Point(230, 105)
+    $datePicker.Size = New-Object System.Drawing.Size(120, 25)
+    $datePicker.Format = [System.Windows.Forms.DateTimePickerFormat]::Short # e.g., "10/26/2024"
+
+    $entryForm.Controls.Add($datePicker)
+
+    # Hour Type Label and Dropdown
     $labelHourType = New-Object System.Windows.Forms.Label
-    $labelHourType.Location = New-Object System.Drawing.Point(225, 80)
+    $labelHourType.Location = New-Object System.Drawing.Point(370, 80)
     $labelHourType.Size = New-Object System.Drawing.Size(100, 20)
     $labelHourType.Text = "Hour Type:"
     $labelHourType.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $entryForm.Controls.Add($labelHourType)
     $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox
-    $hourTypeDropdown.Location = New-Object System.Drawing.Point(225, 105)
+    $hourTypeDropdown.Location = New-Object System.Drawing.Point(370, 105)
     $hourTypeDropdown.Size = New-Object System.Drawing.Size(80, 25)
     $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9)
     $hourTypeDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
     $hourTypeDropdown.Items.AddRange($hourTypes)
     $hourTypeDropdown.SelectedIndex = 0
     $entryForm.Controls.Add($hourTypeDropdown)
+
+    # Hours Label and Textbox
     $labelHours = New-Object System.Windows.Forms.Label
-    $labelHours.Location = New-Object System.Drawing.Point(325, 80)
+    $labelHours.Location = New-Object System.Drawing.Point(470, 80)
     $labelHours.Size = New-Object System.Drawing.Size(90, 20)
     $labelHours.Text = "Hours:"
     $labelHours.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
     $entryForm.Controls.Add($labelHours)
     $hoursInput = New-Object System.Windows.Forms.TextBox
-    $hoursInput.Location = New-Object System.Drawing.Point(320, 105)
-    $hoursInput.Size = New-Object System.Drawing.Size(90, 25)
+    $hoursInput.Location = New-Object System.Drawing.Point(470, 105)
+    $hoursInput.Size = New-Object System.Drawing.Size(60, 25)
     $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9)
     $entryForm.Controls.Add($hoursInput)
+    
+    # --- Buttons and Bottom Divider ---
     $bottomDivider = New-Object System.Windows.Forms.Panel
     $bottomDivider.Location = New-Object System.Drawing.Point(30, 190)
-    $bottomDivider.Size = New-Object System.Drawing.Size(380, 2)
+    $bottomDivider.Size = New-Object System.Drawing.Size(500, 2)
     $bottomDivider.BackColor = [System.Drawing.Color]::LightGray
     $entryForm.Controls.Add($bottomDivider)
     $backButton = New-Object System.Windows.Forms.Button
@@ -340,7 +376,7 @@ function Show-PocDataEntryScreen($parentForm, $currentUser) {
     $backButton.FlatAppearance.BorderSize = 0
     $entryForm.Controls.Add($backButton)
     $submitButton = New-Object System.Windows.Forms.Button
-    $submitButton.Location = New-Object System.Drawing.Point(310, 210)
+    $submitButton.Location = New-Object System.Drawing.Point(430, 210)
     $submitButton.Size = New-Object System.Drawing.Size(100, 30)
     $submitButton.Text = 'Submit'
     $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
@@ -349,120 +385,163 @@ function Show-PocDataEntryScreen($parentForm, $currentUser) {
     $submitButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $submitButton.FlatAppearance.BorderSize = 0
     $entryForm.Controls.Add($submitButton)
-    $backButton.Add_Click({ $entryForm.Close() });
+
+    # --- Click Events ---
+    $backButton.Add_Click({ $entryForm.Close() })
     $submitButton.Add_Click({
-        $selectedCutter = $vesselDropdown.SelectedItem.ToString();
-        $selectedHourType = $hourTypeDropdown.SelectedItem.ToString();
-        $enteredHours = $hoursInput.Text.Trim();
+        $selectedCutter = $vesselDropdown.SelectedItem.ToString()
+        $selectedHourType = $hourTypeDropdown.SelectedItem.ToString()
+        $enteredHours = $hoursInput.Text.Trim()
+        $selectedEventDate = $datePicker.Value # Get the date from the new picker
+
+        # Input Validation
         if ([string]::IsNullOrWhiteSpace($enteredHours)) {
-            [System.Windows.Forms.MessageBox]::Show("Please enter the number of hours.", "Input Missing", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning);
-            return;
+            [System.Windows.Forms.MessageBox]::Show("Please enter the number of hours.", "Input Missing", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            return
         }
-        if (-not ($enteredHours -match '^\d+(\.\d+)?$')) { 
-            [System.Windows.Forms.MessageBox]::Show("Please enter a valid number for hours.", "Invalid Input", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning);
-            return;
+        if (-not ($enteredHours -match '^\d+(\.\d+)?$')) { # Allow integers and decimals
+            [System.Windows.Forms.MessageBox]::Show("Please enter a valid number for hours.", "Invalid Input", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            return
         }
-        Save-PocHourEntry $currentUser $selectedCutter $selectedHourType $enteredHours;
-        [System.Windows.Forms.MessageBox]::Show("Successfully submitted $enteredHours hours for $selectedCutter ($selectedHourType).", "Entry Saved", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information);
-        $hoursInput.Text = "";
-        $vesselDropdown.Focus();
-    });
-    $entryForm.ShowDialog();
+        
+        # MODIFIED: Call the updated save function with the new date parameter
+        Save-PocHourEntry $currentUser $selectedEventDate $selectedCutter $selectedHourType $enteredHours
+        
+        [System.Windows.Forms.MessageBox]::Show("Successfully submitted $enteredHours hours for $selectedCutter ($selectedHourType).", "Entry Saved", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        # Reset hours field for next entry
+        $hoursInput.Text = ""
+        $vesselDropdown.Focus()
+    })
+    $entryForm.ShowDialog()
 }
 
-# ADDED: Entire new function for the View Data screen, using our successful method.
 function Show-PocDataViewScreen($parentForm) {
-    $viewDataForm = New-Object System.Windows.Forms.Form;
-    $viewDataForm.Text = 'POC Hours Summary';
-    $viewDataForm.Size = New-Object System.Drawing.Size(600, 420); # Increased size for more columns/rows
-    $viewDataForm.StartPosition = 'CenterScreen';
-    $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke;
+    # MODIFIED: Added a year filter and updated all logic to support it.
+    $viewDataForm = New-Object System.Windows.Forms.Form
+    $viewDataForm.Text = 'POC Hours Summary'
+    $viewDataForm.Size = New-Object System.Drawing.Size(640, 480) # Made form larger
+    $viewDataForm.StartPosition = 'CenterScreen'
+    $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # ADDED: Year Filter Controls
+    $labelYearFilter = New-Object System.Windows.Forms.Label
+    $labelYearFilter.Location = New-Object System.Drawing.Point(20, 15)
+    $labelYearFilter.Size = New-Object System.Drawing.Size(100, 20)
+    $labelYearFilter.Text = "Filter by Year:"
+    $labelYearFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $viewDataForm.Controls.Add($labelYearFilter)
+
+    $yearComboBox = New-Object System.Windows.Forms.ComboBox
+    $yearComboBox.Location = New-Object System.Drawing.Point(130, 12)
+    $yearComboBox.Size = New-Object System.Drawing.Size(100, 25)
+    $yearComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    $viewDataForm.Controls.Add($yearComboBox)
 
     # --- Data Grid View for the summary table ---
-    $dataGridView = New-Object System.Windows.Forms.DataGridView;
-    $dataGridView.Location = New-Object System.Drawing.Point(20, 20);
-    $dataGridView.Size = New-Object System.Drawing.Size(540, 300);
-    $dataGridView.AllowUserToAddRows = $false;
-    $dataGridView.ReadOnly = $true;
-    $dataGridView.AutoSizeColumnsMode = 'Fill';
-    $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold);
-    $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10);
-    $dataGridView.RowHeadersVisible = $false; # Hide the default row header column
-
-    # Define columns: Cutter Name, VA, DA, PI, MC, Total
-    $dataGridView.Columns.Add("Cutter", "Cutter");
-    $dataGridView.Columns.Add("VA", "VA");
-    $dataGridView.Columns.Add("DA", "DA");
-    $dataGridView.Columns.Add("PI", "PI");
-    $dataGridView.Columns.Add("MC", "MC");
-    $dataGridView.Columns.Add("Total", "Cutter Total");
-    $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold);
+    $dataGridView = New-Object System.Windows.Forms.DataGridView
+    $dataGridView.Location = New-Object System.Drawing.Point(20, 50) # Moved down
+    $dataGridView.Size = New-Object System.Drawing.Size(580, 320) # Adjusted size
+    $dataGridView.AllowUserToAddRows = $false
+    $dataGridView.ReadOnly = $true
+    $dataGridView.AutoSizeColumnsMode = 'AllCells' # Ensures all text is visible
+    $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+    $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+    $dataGridView.RowHeadersVisible = $false
+    # Define columns
+    $dataGridView.Columns.Add("Cutter", "Cutter")
+    $dataGridView.Columns.Add("VA", "VA")
+    $dataGridView.Columns.Add("DA", "DA")
+    $dataGridView.Columns.Add("PI", "PI")
+    $dataGridView.Columns.Add("MC", "MC")
+    $dataGridView.Columns.Add("Total", "Cutter Total")
+    $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+    $viewDataForm.Controls.Add($dataGridView)
     
-    $viewDataForm.Controls.Add($dataGridView);
-
     # --- Function to update all totals in the table ---
     $updateTable = {
-        $dataGridView.Rows.Clear();
-
-        # Load fresh data every time we update
-        $allEntries = Get-PocHourEntries;
+        param($filteredYear) # Accept the year as a parameter
         
-        $cutters = @( "CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY" );
-        $hourTypes = @( "VA", "DA", "PI", "MC" );
-
-        # Helper to get sums safely
-        $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum };
+        $dataGridView.Rows.Clear()
         
-        # Arrays to hold column totals
-        $columnTotals = @{ "VA" = 0; "DA" = 0; "PI" = 0; "MC" = 0 };
-
-        # Process each cutter and create a row
-        foreach ($cutter in $cutters) {
-            $va_total = &$getSum -data $allEntries -cutterFilter $cutter -typeFilter "VA";
-            $da_total = &$getSum -data $allEntries -cutterFilter $cutter -typeFilter "DA";
-            $pi_total = &$getSum -data $allEntries -cutterFilter $cutter -typeFilter "PI";
-            $mc_total = &$getSum -data $allEntries -cutterFilter $cutter -typeFilter "MC";
-            
-            $rowTotal = $va_total + $da_total + $pi_total + $mc_total;
-            
-            $dataGridView.Rows.Add($cutter, $va_total, $da_total, $pi_total, $mc_total, $rowTotal);
-
-            # Add to column totals
-            $columnTotals["VA"] += $va_total;
-            $columnTotals["DA"] += $da_total;
-            $columnTotals["PI"] += $pi_total;
-            $columnTotals["MC"] += $mc_total;
+        # Load fresh data every time
+        $allEntries = Get-PocHourEntries
+        
+        # Apply the year filter if a year is selected
+        if ($filteredYear -and $filteredYear -ne "All Years") {
+            $filteredEntries = $allEntries | Where-Object { $_.EventDate.Year -eq $filteredYear }
+        } else {
+            $filteredEntries = $allEntries # Otherwise, use all entries
         }
-
+        
+        $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
+        $hourTypes = @("VA", "DA", "PI", "MC")
+        
+        # Helper to get sums from the filtered data
+        $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum }
+        
+        $columnTotals = @{ "VA" = 0; "DA" = 0; "PI" = 0; "MC" = 0 }
+        
+        # Process each cutter and create a row using the filtered entries
+        foreach ($cutter in $cutters) {
+            $va_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "VA"
+            $da_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "DA"
+            $pi_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "PI"
+            $mc_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "MC"
+            
+            $rowTotal = $va_total + $da_total + $pi_total + $mc_total
+            $dataGridView.Rows.Add($cutter, $va_total, $da_total, $pi_total, $mc_total, $rowTotal)
+            
+            # Add to column totals
+            $columnTotals["VA"] += $va_total; $columnTotals["DA"] += $da_total;
+            $columnTotals["PI"] += $pi_total; $columnTotals["MC"] += $mc_total;
+        }
+        
         # Add the final "TOTALS" row
-        $grandTotal = $columnTotals.Values | Measure-Object -Sum | Select-Object -ExpandProperty Sum;
-        $dataGridView.Rows.Add("TOTALS", $columnTotals["VA"], $columnTotals["DA"], $columnTotals["PI"], $columnTotals["MC"], $grandTotal);
+        $grandTotal = $columnTotals.Values | Measure-Object -Sum | Select-Object -ExpandProperty Sum
+        $dataGridView.Rows.Add("TOTALS", $columnTotals["VA"], $columnTotals["DA"], $columnTotals["PI"], $columnTotals["MC"], $grandTotal)
         
         # Style the totals row
-        $totalsRow = $dataGridView.Rows[$dataGridView.Rows.Count - 1];
-        $totalsRow.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold);
-        $totalsRow.DefaultCellStyle.BackColor = [System.Drawing.Color]::LightGray;
-    };
+        $totalsRow = $dataGridView.Rows[$dataGridView.Rows.Count - 1]
+        $totalsRow.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+        $totalsRow.DefaultCellStyle.BackColor = [System.Drawing.Color]::LightGray
+    }
 
-    # Update table when the form loads
-    $viewDataForm.add_Load({ &$updateTable });
+    # ADDED: Event handler for the year dropdown
+    $yearComboBox.add_SelectedIndexChanged({
+        # When the selection changes, call the updateTable function with the new year
+        &$updateTable -filteredYear $yearComboBox.SelectedItem
+    })
+    
+    # MODIFIED: Form Load event now populates the dropdown and does the initial table load
+    $viewDataForm.add_Load({
+        # Populate the year dropdown based on the data
+        $allYears = (Get-PocHourEntries | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
+        $yearComboBox.Items.Clear()
+        $yearComboBox.Items.Add("All Years")
+        if ($allYears) {
+            $yearComboBox.Items.AddRange($allYears)
+        }
+        $yearComboBox.SelectedIndex = 0 # Default to "All Years"
+        
+        # Initial table load
+        &$updateTable -filteredYear $yearComboBox.SelectedItem
+    })
 
-    # Back button
-    $backButton = New-Object System.Windows.Forms.Button;
-    $backButton.Location = New-Object System.Drawing.Point(245, 335);
-    $backButton.Size = New-Object System.Drawing.Size(90, 30);
-    $backButton.Text = 'Back';
-    $backButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold);
-    $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel;
-    $viewDataForm.Controls.Add($backButton);
-    $viewDataForm.CancelButton = $backButton;
-
-    $viewDataForm.ShowDialog();
+    # --- Back button ---
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(265, 385) # Adjusted position
+    $backButton.Size = New-Object System.Drawing.Size(90, 30)
+    $backButton.Text = 'Back'
+    $backButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $viewDataForm.Controls.Add($backButton)
+    $viewDataForm.CancelButton = $backButton
+    
+    $viewDataForm.ShowDialog()
 }
 
-
 function Show-PocSelectionScreen($parentForm, $currentUser) {
-    # This function is the same, but the 'View Data' button is now functional
+    # Shows the selection screen for "Data Entry" or "View Data".
     $selectionForm = New-Object System.Windows.Forms.Form
     $selectionForm.Text = 'Taconite App - Cutter POCs'
     $selectionForm.Size = New-Object System.Drawing.Size(320, 260)
@@ -516,21 +595,15 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $backButton.FlatAppearance.BorderSize = 0
     $selectionForm.Controls.Add($backButton)
     
-    $dataEntryButton.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser });
-
-    # MODIFIED: This now calls our new, functional View Data screen.
-    $viewDataButton.Add_Click({
-        Show-PocDataViewScreen $selectionForm;
-    });
-
-    $backButton.Add_Click({ $selectionForm.Close() });
+    $dataEntryButton.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser })
+    $viewDataButton.Add_Click({ Show-PocDataViewScreen $selectionForm })
+    $backButton.Add_Click({ $selectionForm.Close() })
     
-    $selectionForm.ShowDialog();
+    $selectionForm.ShowDialog()
 }
 
-
 function Show-LoginForm {
-    # This function remains unchanged...
+    # This function defines the main login window.
     $form = New-Object System.Windows.Forms.Form
     $form.Text = 'Taconite App - Login'
     $form.Size = New-Object System.Drawing.Size(300,230)
@@ -657,8 +730,9 @@ function Show-LoginForm {
         Log-Attempt $username $password "ACCOUNT CREATED";
     });
     $form.Add_Shown({$textBoxUsername.Select()});
-    $form.ShowDialog();
+    $form.ShowDialog()
 }
 
-# 6. Start the App
-Show-LoginForm;
+# 5. Start the Application
+# The script execution starts here by calling the main login form.
+Show-LoginForm
