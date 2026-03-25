@@ -1,4 +1,3 @@
-
 # TACONITE APP - FINAL VERSION
 
 # 1. Load Required .NET Assemblies
@@ -12,11 +11,14 @@ $accountsFilePath = "$PSScriptRoot\taconite_accounts.txt"
 $cutterLogPath = "$PSScriptRoot\cutter_movements_log.txt"
 $cutterStatusPath = "$PSScriptRoot\cutter_status.txt"
 $pocHoursPath = "$PSScriptRoot\poc_hours.txt"
+$operationsFilePath = "$PSScriptRoot\cutter_operations.txt" # File for operation assignments
+$pocHoursTaconitePath = "$PSScriptRoot\poc_hours_taconite.txt"
+$pocHoursCoalShovelPath = "$PSScriptRoot\poc_hours_coalshovel.txt"
+
 
 # 3. Helper Functions (Data Management)
 
 function Get-Accounts {
-    # Reads the accounts file and returns a hashtable of username-password pairs.
     $accounts = @{}
     if (Test-Path $accountsFilePath) {
         Get-Content $accountsFilePath | ForEach-Object {
@@ -30,40 +32,46 @@ function Get-Accounts {
 }
 
 function Save-Account($username, $password) {
-    # Appends a new user account to the accounts file.
     Add-Content -Path $accountsFilePath -Value "$username|$password"
 }
 
 function Log-Attempt($username, $password, $status) {
-    # Logs a login, logout, or account creation attempt to the main log file.
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] Username: $username | Password: $password | Status: $status"
     Add-Content -Path $logFilePath -Value $logEntry
 }
 
 function Log-CutterUpdate($username, $vessel, $newStatus) {
-    # Logs when a user updates a cutter's status.
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] User: $username | Vessel: $vessel | Updated Status To: $newStatus"
     Add-Content -Path $cutterLogPath -Value $logEntry
 }
 
-function Save-PocHourEntry($username, $eventDate, $cutter, $hourType, $hours) {
-    # Saves a new POC hour entry with the specific date the hours occurred.
+function Save-PocHourEntry($username, $eventDate, $operation, $cutter, $hourType, $hours) {
+    # MODIFIED: Writes to a different file based on the operation.
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $eventDateString = $eventDate.ToString("yyyy-MM-dd")
 
+    # The data format no longer includes the operation name in the string.
     # FORMAT: TIMESTAMP|USER|EVENT_DATE|CUTTER|HOUR_TYPE|HOURS
     $logEntry = "$timestamp|$username|$eventDateString|$cutter|$hourType|$hours"
-    Add-Content -Path $pocHoursPath -Value $logEntry
+
+    # Choose the correct file path based on the operation.
+    $targetPath = if ($operation -eq "Operation TACONITE") { $pocHoursTaconitePath } else { $pocHoursCoalShovelPath }
+    
+    Add-Content -Path $targetPath -Value $logEntry
 }
 
-function Get-PocHourEntries {
-    # Reads the POC hours file, parsing the 6-column format.
+function Get-PocHourEntries($operation) {
+    # MODIFIED: Reads from a different file based on the operation.
     $entries = New-Object System.ComponentModel.BindingList[PSObject]
-    if (Test-Path $pocHoursPath) {
-        Get-Content $pocHoursPath | ForEach-Object {
-            # FORMAT: TIMESTAMP|USER|EVENT_DATE|CUTTER|HOUR_TYPE|HOURS
+    
+    # Choose the correct file path to read from.
+    $targetPath = if ($operation -eq "Operation TACONITE") { $pocHoursTaconitePath } else { $pocHoursCoalShovelPath }
+
+    if (Test-Path $targetPath) {
+        Get-Content $targetPath | ForEach-Object {
+            # The format is now 6 columns again.
             $parts = $_ -split '\|'
             if ($parts.Length -eq 6) {
                 $entry = [PSCustomObject]@{
@@ -81,8 +89,8 @@ function Get-PocHourEntries {
     return $entries
 }
 
+
 function Get-CutterStatuses {
-    # Reads the cutter status file and returns a hashtable with the latest status for each vessel.
     $statuses = @{}
     if (Test-Path $cutterStatusPath) {
         Get-Content $cutterStatusPath | ForEach-Object {
@@ -100,7 +108,6 @@ function Get-CutterStatuses {
 }
 
 function Save-CutterStatus($vessel, $status, $currentUser) {
-    # Updates a vessel's status and rewrites the entire status file.
     $statuses = Get-CutterStatuses
     $timestamp = Get-Date -Format "MM/dd/yy HH:mm"
     $statuses[$vessel] = @{
@@ -117,372 +124,534 @@ function Save-CutterStatus($vessel, $status, $currentUser) {
     Set-Content -Path $cutterStatusPath -Value $lines
 }
 
+function Get-CutterOperations {
+    # Retrieves cutter operation assignments from a file. If the file doesn't exist, it creates it with defaults.
+    $assignments = @{}
+    $defaultAssignments = @{
+        "CGC MACKINAW"    = "Operation TACONITE";
+        "CGC SPAR"        = "Operation TACONITE";
+        "CGC BISCAYNE BAY"= "Operation TACONITE";
+        "CGC MOBILE BAY"  = "Operation TACONITE";
+        "CGC KATMAI BAY"  = "Operation COAL SHOVEL";
+        "CGC NEAH BAY"    = "Operation COAL SHOVEL";
+        "CGC BRISTOL BAY" = "Operation COAL SHOVEL";
+    }
+
+    if (Test-Path $operationsFilePath) {
+        Get-Content $operationsFilePath | ForEach-Object {
+            $parts = $_ -split '\|'
+            if ($parts.Length -eq 2) {
+                $assignments[$parts[0].Trim()] = $parts[1].Trim()
+            }
+        }
+        return $assignments
+    } else {
+        # If the file doesn't exist, save the defaults and return them.
+        Save-CutterOperations $defaultAssignments
+        return $defaultAssignments
+    }
+}
+
+function Save-CutterOperations($assignments) {
+    # Saves the provided hashtable of assignments to the operations file.
+    $lines = @()
+    # Sort by cutter name for consistency.
+    $sortedKeys = $assignments.Keys | Sort-Object
+    foreach ($key in $sortedKeys) {
+        $lines += "$key|$($assignments[$key])"
+    }
+    Set-Content -Path $operationsFilePath -Value $lines
+}
+
+
 # 4. GUI Screen Functions
 
 function Show-CutterMovements($parentForm, $currentUser) {
-    # This function defines the UI and logic for the Cutter Movements screen.
+    # --- FORM INITIALIZATION (WIDER LAYOUT) ---
     $cutterForm = New-Object System.Windows.Forms.Form
     $cutterForm.Text = 'Taconite App - Cutter Movements'
-    $cutterForm.Size = New-Object System.Drawing.Size(620,620)
+    $cutterForm.Size = New-Object System.Drawing.Size(1100, 820)
     $cutterForm.StartPosition = 'CenterScreen'
     $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $cutters = @( "CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY" )
+
+    # --- DATA & CONTROLS SETUP ---
+    $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
+    $operations = @("Operation TACONITE", "Operation COAL SHOVEL")
+    $statusLabels = @{}
+    $updateInfoLabels = @{}
+
+    # --- LEFT COLUMN: PANEL FOR DISPLAYING TABLES ---
+    $mainPanel = New-Object System.Windows.Forms.Panel
+    $mainPanel.Location = New-Object System.Drawing.Point(20, 80)
+    $mainPanel.Size = New-Object System.Drawing.Size(620, 680)
+    $mainPanel.AutoScroll = $true
+    $cutterForm.Controls.Add($mainPanel)
+
+    # --- TITLE (SPANS THE TOP) ---
     $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Location = New-Object System.Drawing.Point(0,20)
-    $titleLabel.Size = New-Object System.Drawing.Size(620,40)
+    $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
+    $titleLabel.Size = New-Object System.Drawing.Size(1100, 40)
     $titleLabel.Text = "CUTTER MOVEMENTS"
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($titleLabel)
-    $divider = New-Object System.Windows.Forms.Panel
-    $divider.Location = New-Object System.Drawing.Point(30,68)
-    $divider.Size = New-Object System.Drawing.Size(540,2)
-    $divider.BackColor = [System.Drawing.Color]::LightGray
-    $cutterForm.Controls.Add($divider)
+
+    # --- RIGHT COLUMN: ACTION PANELS ---
+
+    # UPDATE STATUS PANEL
     $updatePanel = New-Object System.Windows.Forms.Panel
-    $updatePanel.Location = New-Object System.Drawing.Point(30,80)
-    $updatePanel.Size = New-Object System.Drawing.Size(540,90)
-    $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230,238,250)
+    $updatePanel.Location = New-Object System.Drawing.Point(660, 80)
+    $updatePanel.Size = New-Object System.Drawing.Size(400, 130)
+    $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230, 238, 250)
+    $updatePanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
     $cutterForm.Controls.Add($updatePanel)
     $updateTitle = New-Object System.Windows.Forms.Label
-    $updateTitle.Location = New-Object System.Drawing.Point(10,8)
-    $updateTitle.Size = New-Object System.Drawing.Size(200,20)
-    $updateTitle.Text = "Update Status"
-    $updateTitle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $updateTitle.Location = New-Object System.Drawing.Point(15, 15)
+    $updateTitle.Size = New-Object System.Drawing.Size(200, 20)
+    $updateTitle.Text = "Update Cutter Status"
+    $updateTitle.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
     $updatePanel.Controls.Add($updateTitle)
-    $vesselDropdown = New-Object System.Windows.Forms.ComboBox
-    $vesselDropdown.Location = New-Object System.Drawing.Point(10,32)
-    $vesselDropdown.Size = New-Object System.Drawing.Size(200,25)
-    $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9)
-    $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    foreach ($cutter in $cutters) { $vesselDropdown.Items.Add($cutter) | Out-Null }
-    $vesselDropdown.SelectedIndex = 0
-    $updatePanel.Controls.Add($vesselDropdown)
+    $vesselDropdownStatus = New-Object System.Windows.Forms.ComboBox
+    $vesselDropdownStatus.Location = New-Object System.Drawing.Point(15, 45)
+    $vesselDropdownStatus.Size = New-Object System.Drawing.Size(200, 25)
+    $vesselDropdownStatus.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    $vesselDropdownStatus.Items.AddRange($cutters)
+    $vesselDropdownStatus.SelectedIndex = 0
+    $updatePanel.Controls.Add($vesselDropdownStatus)
     $statusInput = New-Object System.Windows.Forms.TextBox
-    $statusInput.Location = New-Object System.Drawing.Point(220,32)
-    $statusInput.Size = New-Object System.Drawing.Size(210,25)
-    $statusInput.Font = New-Object System.Drawing.Font("Arial", 9)
+    $statusInput.Location = New-Object System.Drawing.Point(15, 80)
+    $statusInput.Size = New-Object System.Drawing.Size(275, 25)
     $statusInput.ForeColor = [System.Drawing.Color]::Gray
     $statusInput.Text = "Enter new status..."
-    $updatePanel.Controls.Add($statusInput)
     $statusInput.Add_Enter({ if ($statusInput.Text -eq "Enter new status...") { $statusInput.Text = ""; $statusInput.ForeColor = [System.Drawing.Color]::Black } })
     $statusInput.Add_Leave({ if ($statusInput.Text -eq "") { $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray } })
+    $updatePanel.Controls.Add($statusInput)
     $updateBtn = New-Object System.Windows.Forms.Button
-    $updateBtn.Location = New-Object System.Drawing.Point(440,30)
-    $updateBtn.Size = New-Object System.Drawing.Size(90,28)
-    $updateBtn.Text = "Update Status"
+    $updateBtn.Location = New-Object System.Drawing.Point(300, 78)
+    $updateBtn.Size = New-Object System.Drawing.Size(80, 28)
+    $updateBtn.Text = "Update"
     $updateBtn.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $updateBtn.BackColor = [System.Drawing.Color]::SteelBlue
     $updateBtn.ForeColor = [System.Drawing.Color]::White
-    $updateBtn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $updateBtn.FlatAppearance.BorderSize = 0
     $updatePanel.Controls.Add($updateBtn)
-    $panelDivider = New-Object System.Windows.Forms.Panel
-    $panelDivider.Location = New-Object System.Drawing.Point(30,178)
-    $panelDivider.Size = New-Object System.Drawing.Size(540,2)
-    $panelDivider.BackColor = [System.Drawing.Color]::LightGray
-    $cutterForm.Controls.Add($panelDivider)
-    $headerLeft = New-Object System.Windows.Forms.Label
-    $headerLeft.Location = New-Object System.Drawing.Point(30,188)
-    $headerLeft.Size = New-Object System.Drawing.Size(150,25)
-    $headerLeft.Text = "Cutter Name"
-    $headerLeft.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $headerLeft.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-    $cutterForm.Controls.Add($headerLeft)
-    $headerCenter = New-Object System.Windows.Forms.Label
-    $headerCenter.Location = New-Object System.Drawing.Point(190,188)
-    $headerCenter.Size = New-Object System.Drawing.Size(150,25)
-    $headerCenter.Text = "Last Updated"
-    $headerCenter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $headerCenter.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $cutterForm.Controls.Add($headerCenter)
-    $headerRight = New-Object System.Windows.Forms.Label
-    $headerRight.Location = New-Object System.Drawing.Point(350,188)
-    $headerRight.Size = New-Object System.Drawing.Size(150,25)
-    $headerRight.Text = "Movement / Status"
-    $headerRight.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $headerRight.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-    $cutterForm.Controls.Add($headerRight)
-    $headerDivider = New-Object System.Windows.Forms.Panel
-    $headerDivider.Location = New-Object System.Drawing.Point(30,216)
-    $headerDivider.Size = New-Object System.Drawing.Size(540,2)
-    $headerDivider.BackColor = [System.Drawing.Color]::LightGray
-    $cutterForm.Controls.Add($headerDivider)
-    $statusLabels = @{}; $updateInfoLabels = @{}; $rowHeight = 45; $startY = 220;
-    $currentStatuses = Get-CutterStatuses;
-    for ($i = 0; $i -lt $cutters.Length; $i++) {
-        $rowY = $startY + ($i * $rowHeight);
-        $rowPanel = New-Object System.Windows.Forms.Panel;
-        $rowPanel.Location = New-Object System.Drawing.Point(30, $rowY);
-        $rowPanel.Size = New-Object System.Drawing.Size(540, $rowHeight);
-        if ($i % 2 -eq 0) { $rowPanel.BackColor = [System.Drawing.Color]::White } else { $rowPanel.BackColor = [System.Drawing.Color]::FromArgb(240,240,245) }
-        $cutterForm.Controls.Add($rowPanel);
-        $nameLabel = New-Object System.Windows.Forms.Label;
-        $nameLabel.Location = New-Object System.Drawing.Point(10,10); $nameLabel.Size = New-Object System.Drawing.Size(150,25);
-        $nameLabel.Text = $cutters[$i]; $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold);
-        $nameLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft; $rowPanel.Controls.Add($nameLabel);
-        $updateInfoLabel = New-Object System.Windows.Forms.Label;
-        $updateInfoLabel.Location = New-Object System.Drawing.Point(160, 2); $updateInfoLabel.Size = New-Object System.Drawing.Size(160, 40);
-        $updateInfoLabel.Font = New-Object System.Drawing.Font("Arial", 9); $updateInfoLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter;
-        $updateInfoLabel.ForeColor = [System.Drawing.Color]::DimGray; $rowPanel.Controls.Add($updateInfoLabel);
-        $statusLabel = New-Object System.Windows.Forms.Label;
-        $statusLabel.Location = New-Object System.Drawing.Point(320, 10); $statusLabel.Size = New-Object System.Drawing.Size(210, 25);
-        $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10); $statusLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft;
-        $statusLabel.ForeColor = [System.Drawing.Color]::DimGray;
-        if ($currentStatuses.ContainsKey($cutters[$i])) {
-            $statusData = $currentStatuses[$cutters[$i]];
-            $statusLabel.Text = $statusData.Status; $statusLabel.ForeColor = [System.Drawing.Color]::Black;
-            $updateInfoLabel.Text = "$($statusData.Timestamp)`n$($statusData.User)";
-            $updateInfoLabel.ForeColor = [System.Drawing.Color]::Black;
-        } else { $statusLabel.Text = "No status reported"; $updateInfoLabel.Text = "N/A"; }
-        $rowPanel.Controls.Add($statusLabel);
-        $statusLabels[$cutters[$i]] = $statusLabel;
-        $updateInfoLabels[$cutters[$i]] = $updateInfoLabel;
-    }
-    $bottomDivider = New-Object System.Windows.Forms.Panel; $bottomDivider.Location = New-Object System.Drawing.Point(30,538);
-    $bottomDivider.Size = New-Object System.Drawing.Size(540,2); $bottomDivider.BackColor = [System.Drawing.Color]::LightGray;
-    $cutterForm.Controls.Add($bottomDivider);
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30,550);
-    $backButton.Size = New-Object System.Drawing.Size(80,30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10);
-    $backButton.BackColor = [System.Drawing.Color]::DimGray; $backButton.ForeColor = [System.Drawing.Color]::White; $backButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat;
-    $backButton.FlatAppearance.BorderSize = 0; $cutterForm.Controls.Add($backButton); $backButton.Add_Click({ $cutterForm.Close() });
-    $updateBtn.Add_Click({
-        $selectedVessel = $vesselDropdown.SelectedItem.ToString();
-        $newStatus = $statusInput.Text.Trim();
-        if ($newStatus -eq "" -or $newStatus -eq "Enter new status...") {
-            [System.Windows.Forms.MessageBox]::Show("Please enter a status before updating.", "Missing Status", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning);
-            return;
+
+    # ASSIGN OPERATION PANEL
+    $assignPanel = New-Object System.Windows.Forms.Panel
+    $assignPanel.Location = New-Object System.Drawing.Point(660, 230)
+    $assignPanel.Size = New-Object System.Drawing.Size(400, 130)
+    $assignPanel.BackColor = [System.Drawing.Color]::FromArgb(250, 245, 230)
+    $assignPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+    $cutterForm.Controls.Add($assignPanel)
+    $assignTitle = New-Object System.Windows.Forms.Label
+    $assignTitle.Location = New-Object System.Drawing.Point(15, 15)
+    $assignTitle.Size = New-Object System.Drawing.Size(250, 20)
+    $assignTitle.Text = "Assign Cutter to Operation"
+    $assignTitle.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $assignPanel.Controls.Add($assignTitle)
+    $vesselDropdownAssign = New-Object System.Windows.Forms.ComboBox
+    $vesselDropdownAssign.Location = New-Object System.Drawing.Point(15, 45)
+    $vesselDropdownAssign.Size = New-Object System.Drawing.Size(200, 25)
+    $vesselDropdownAssign.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    $vesselDropdownAssign.Items.AddRange($cutters)
+    $vesselDropdownAssign.SelectedIndex = 0
+    $assignPanel.Controls.Add($vesselDropdownAssign)
+    $operationDropdown = New-Object System.Windows.Forms.ComboBox
+    $operationDropdown.Location = New-Object System.Drawing.Point(15, 80)
+    $operationDropdown.Size = New-Object System.Drawing.Size(275, 25)
+    $operationDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    $operationDropdown.Items.AddRange($operations)
+    $operationDropdown.SelectedIndex = 0
+    $assignPanel.Controls.Add($operationDropdown)
+    $assignBtn = New-Object System.Windows.Forms.Button
+    $assignBtn.Location = New-Object System.Drawing.Point(300, 78)
+    $assignBtn.Size = New-Object System.Drawing.Size(80, 28)
+    $assignBtn.Text = "Assign"
+    $assignBtn.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
+    $assignBtn.BackColor = [System.Drawing.Color]::DarkGoldenrod
+    $assignBtn.ForeColor = [System.Drawing.Color]::White
+    $assignPanel.Controls.Add($assignBtn)
+    
+    # --- BACK BUTTON ---
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(980, 380)
+    $backButton.Size = New-Object System.Drawing.Size(80, 30)
+    $backButton.Text = 'Back'
+    $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $cutterForm.CancelButton = $backButton
+    $cutterForm.Controls.Add($backButton)
+
+    # --- CORE LOGIC: FUNCTION TO REBUILD THE DISPLAY ---
+    $rebuildDisplay = {
+        $mainPanel.Controls.Clear()
+        $statusLabels.Clear()
+        $updateInfoLabels.Clear()
+        
+        $currentStatuses = Get-CutterStatuses
+        $cutterAssignments = Get-CutterOperations
+
+        $currentY = 10 
+        
+        foreach ($operation in $operations) {
+            $headerLabel = New-Object System.Windows.Forms.Label
+            $headerLabel.Location = New-Object System.Drawing.Point(10, $currentY)
+            $headerLabel.Size = New-Object System.Drawing.Size(580, 30)
+            $headerLabel.Text = $operation.ToUpper()
+            $headerLabel.Font = New-Object System.Drawing.Font("Arial", 14, [System.Drawing.FontStyle]::Bold)
+            $headerLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+            $headerLabel.BackColor = [System.Drawing.Color]::LightGray
+            $mainPanel.Controls.Add($headerLabel)
+            $currentY += $headerLabel.Height + 5
+
+            $assignedCutters = $cutterAssignments.GetEnumerator() | Where-Object { $_.Value -eq $operation } | ForEach-Object { $_.Name } | Sort-Object
+
+            if ($assignedCutters) {
+                $headerPanel = New-Object System.Windows.Forms.Panel
+                $headerPanel.Location = New-Object System.Drawing.Point(10, $currentY)
+                $headerPanel.Size = New-Object System.Drawing.Size(580, 25)
+                $mainPanel.Controls.Add($headerPanel)
+                $headerName = New-Object System.Windows.Forms.Label; $headerName.Text = "Cutter"; $headerName.Location = New-Object System.Drawing.Point(10, 0); $headerName.Size = New-Object System.Drawing.Size(150, 25); $headerName.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerPanel.Controls.Add($headerName)
+                $headerUpdated = New-Object System.Windows.Forms.Label; $headerUpdated.Text = "Last Updated"; $headerUpdated.Location = New-Object System.Drawing.Point(190, 0); $headerUpdated.Size = New-Object System.Drawing.Size(160, 25); $headerUpdated.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerUpdated.TextAlign = "MiddleCenter"; $headerPanel.Controls.Add($headerUpdated)
+                $headerStatus = New-Object System.Windows.Forms.Label; $headerStatus.Text = "Movement / Status"; $headerStatus.Location = New-Object System.Drawing.Point(360, 0); $headerStatus.Size = New-Object System.Drawing.Size(210, 25); $headerStatus.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerPanel.Controls.Add($headerStatus)
+                $currentY += $headerPanel.Height
+
+                $i = 0
+                foreach ($cutterName in $assignedCutters) {
+                    $rowPanel = New-Object System.Windows.Forms.Panel
+                    $rowPanel.Location = New-Object System.Drawing.Point(10, $currentY)
+                    $rowPanel.Size = New-Object System.Drawing.Size(580, 45)
+                    $rowPanel.BackColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240,240,245) }
+                    $mainPanel.Controls.Add($rowPanel)
+                    
+                    $nameLabel = New-Object System.Windows.Forms.Label; $nameLabel.Text = $cutterName; $nameLabel.Location = New-Object System.Drawing.Point(10, 10); $nameLabel.Size = New-Object System.Drawing.Size(170, 25); $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $rowPanel.Controls.Add($nameLabel)
+                    $updateInfoLabel = New-Object System.Windows.Forms.Label; $updateInfoLabel.Location = New-Object System.Drawing.Point(190, 2); $updateInfoLabel.Size = New-Object System.Drawing.Size(160, 40); $updateInfoLabel.Font = New-Object System.Drawing.Font("Arial", 9); $updateInfoLabel.TextAlign = "MiddleCenter"; $rowPanel.Controls.Add($updateInfoLabel)
+                    $statusLabel = New-Object System.Windows.Forms.Label; $statusLabel.Location = New-Object System.Drawing.Point(360, 10); $statusLabel.Size = New-Object System.Drawing.Size(210, 25); $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10); $rowPanel.Controls.Add($statusLabel)
+                    
+                    if ($currentStatuses.ContainsKey($cutterName)) {
+                        $statusData = $currentStatuses[$cutterName]
+                        $statusLabel.Text = $statusData.Status
+                        $updateInfoLabel.Text = "$($statusData.Timestamp)`n$($statusData.User)"
+                    } else {
+                        $statusLabel.Text = "No status reported"
+                        $updateInfoLabel.Text = "N/A"
+                    }
+                    
+                    $statusLabels[$cutterName] = $statusLabel
+                    $updateInfoLabels[$cutterName] = $updateInfoLabel
+                    
+                    $currentY += $rowPanel.Height
+                    $i++
+                }
+            } else {
+                $noCutterLabel = New-Object System.Windows.Forms.Label
+                $noCutterLabel.Location = New-Object System.Drawing.Point(10, $currentY)
+                $noCutterLabel.Size = New-Object System.Drawing.Size(580, 25)
+                $noCutterLabel.Text = "No cutters assigned to this operation."
+                $noCutterLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Italic)
+                $noCutterLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+                $mainPanel.Controls.Add($noCutterLabel)
+                $currentY += $noCutterLabel.Height
+            }
+            $currentY += 20
         }
-        Save-CutterStatus $selectedVessel $newStatus $currentUser;
-        Log-CutterUpdate $currentUser $selectedVessel $newStatus;
-        $timestampForDisplay = Get-Date -Format "MM/dd/yy HH:mm";
-        $statusLabels[$selectedVessel].Text = $newStatus;
-        $statusLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::Black;
-        $updateInfoLabels[$selectedVessel].Text = "$timestampForDisplay`n$currentUser";
-        $updateInfoLabels[$selectedVessel].ForeColor = [System.Drawing.Color]::Black;
-        $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray;
-        [System.Windows.Forms.MessageBox]::Show("Status for $selectedVessel updated successfully!", "Status Updated", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information);
-    });
+    }
+
+    # --- EVENT HANDLERS ---
+    $updateBtn.Add_Click({
+        $selectedVessel = $vesselDropdownStatus.SelectedItem.ToString()
+        $newStatus = $statusInput.Text.Trim()
+        if ([string]::IsNullOrWhiteSpace($newStatus) -or $newStatus -eq "Enter new status...") {
+            [System.Windows.Forms.MessageBox]::Show("Please enter a status before updating.", "Missing Status")
+            return
+        }
+        Save-CutterStatus $selectedVessel $newStatus $currentUser
+        Log-CutterUpdate $currentUser $selectedVessel $newStatus
+        $timestampForDisplay = Get-Date -Format "MM/dd/yy HH:mm"
+        $statusLabels[$selectedVessel].Text = $newStatus
+        $updateInfoLabels[$selectedVessel].Text = "$timestampForDisplay`n$currentUser"
+        $statusInput.Text = "Enter new status..."
+        $statusInput.ForeColor = [System.Drawing.Color]::Gray
+        [System.Windows.Forms.MessageBox]::Show("Status for $selectedVessel updated successfully!", "Status Updated")
+    })
+
+    $assignBtn.Add_Click({
+        $selectedVessel = $vesselDropdownAssign.SelectedItem.ToString()
+        $selectedOp = $operationDropdown.SelectedItem.ToString()
+        $assignments = Get-CutterOperations
+        $assignments[$selectedVessel] = $selectedOp
+        Save-CutterOperations $assignments
+        [System.Windows.Forms.MessageBox]::Show("$selectedVessel has been assigned to $selectedOp.", "Assignment Updated")
+        &$rebuildDisplay
+    })
+    
+    $cutterForm.Add_Load({
+        &$rebuildDisplay
+    })
+    
     $cutterForm.ShowDialog()
 }
 
-function Show-PocDataEntryScreen($parentForm, $currentUser) {
-    # Defines the POC Hour Entry screen with a date picker.
+function Show-PocSelectionScreen($parentForm, $currentUser) {
+    # MODIFIED: Redesigned into a two-column layout for TACONITE and COAL SHOVEL.
+    $selectionForm = New-Object System.Windows.Forms.Form
+    $selectionForm.Text = 'Taconite App - Cutter POCs'
+    $selectionForm.Size = New-Object System.Drawing.Size(500, 320)
+    $selectionForm.StartPosition = 'CenterScreen'
+    $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # --- TACONITE COLUMN (LEFT) ---
+    $taconiteHeader = New-Object System.Windows.Forms.Label
+    $taconiteHeader.Location = New-Object System.Drawing.Point(0, 20)
+    $taconiteHeader.Size = New-Object System.Drawing.Size(250, 30)
+    $taconiteHeader.Text = "TACONITE"
+    $taconiteHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
+    $taconiteHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $selectionForm.Controls.Add($taconiteHeader)
+
+    $taconiteDataEntryBtn = New-Object System.Windows.Forms.Button
+    $taconiteDataEntryBtn.Location = New-Object System.Drawing.Point(40, 70)
+    $taconiteDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60)
+    $taconiteDataEntryBtn.Text = 'Data Entry'
+    $taconiteDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $taconiteDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue
+    $taconiteDataEntryBtn.ForeColor = [System.Drawing.Color]::White
+    $selectionForm.Controls.Add($taconiteDataEntryBtn)
+
+    $taconiteViewDataBtn = New-Object System.Windows.Forms.Button
+    $taconiteViewDataBtn.Location = New-Object System.Drawing.Point(40, 140)
+    $taconiteViewDataBtn.Size = New-Object System.Drawing.Size(170, 60)
+    $taconiteViewDataBtn.Text = 'View Data'
+    $taconiteViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $taconiteViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray
+    $taconiteViewDataBtn.ForeColor = [System.Drawing.Color]::White
+    $selectionForm.Controls.Add($taconiteViewDataBtn)
+
+    # --- COAL SHOVEL COLUMN (RIGHT) ---
+    $coalShovelHeader = New-Object System.Windows.Forms.Label
+    $coalShovelHeader.Location = New-Object System.Drawing.Point(250, 20)
+    $coalShovelHeader.Size = New-Object System.Drawing.Size(250, 30)
+    $coalShovelHeader.Text = "COAL SHOVEL"
+    $coalShovelHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
+    $coalShovelHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+    $selectionForm.Controls.Add($coalShovelHeader)
+
+    $coalShovelDataEntryBtn = New-Object System.Windows.Forms.Button
+    $coalShovelDataEntryBtn.Location = New-Object System.Drawing.Point(290, 70)
+    $coalShovelDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60)
+    $coalShovelDataEntryBtn.Text = 'Data Entry'
+    $coalShovelDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $coalShovelDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue
+    $coalShovelDataEntryBtn.ForeColor = [System.Drawing.Color]::White
+    $selectionForm.Controls.Add($coalShovelDataEntryBtn)
+
+    $coalShovelViewDataBtn = New-Object System.Windows.Forms.Button
+    $coalShovelViewDataBtn.Location = New-Object System.Drawing.Point(290, 140)
+    $coalShovelViewDataBtn.Size = New-Object System.Drawing.Size(170, 60)
+    $coalShovelViewDataBtn.Text = 'View Data'
+    $coalShovelViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $coalShovelViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray
+    $coalShovelViewDataBtn.ForeColor = [System.Drawing.Color]::White
+    $selectionForm.Controls.Add($coalShovelViewDataBtn)
+
+    # --- BACK BUTTON ---
+    $backButton = New-Object System.Windows.Forms.Button
+    $backButton.Location = New-Object System.Drawing.Point(210, 240)
+    $backButton.Size = New-Object System.Drawing.Size(80, 30)
+    $backButton.Text = 'Back'
+    $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
+    $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $selectionForm.CancelButton = $backButton
+    $selectionForm.Controls.Add($backButton)
+    
+    # --- CLICK EVENTS ---
+    $taconiteDataEntryBtn.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser "Operation TACONITE" })
+    $taconiteViewDataBtn.Add_Click({ Show-PocDataViewScreen $selectionForm "Operation TACONITE" })
+    
+    $coalShovelDataEntryBtn.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser "Operation COAL SHOVEL" })
+    $coalShovelViewDataBtn.Add_Click({ Show-PocDataViewScreen $selectionForm "Operation COAL SHOVEL" })
+
+    $selectionForm.ShowDialog()
+}
+
+function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
+    # MODIFIED: Accepts an $operation parameter to filter cutters and save data correctly.
     $entryForm = New-Object System.Windows.Forms.Form
-    $entryForm.Text = 'Taconite App - POC Hour Entry'
+    $entryForm.Text = "Taconite App - POC Hour Entry ($operation)"
     $entryForm.Size = New-Object System.Drawing.Size(580, 320)
     $entryForm.StartPosition = 'CenterScreen'
     $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
-    # --- Title and Divider ---
-    $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
-    $titleLabel.Size = New-Object System.Drawing.Size(580, 30)
-    $titleLabel.Text = "POC HOUR ENTRY"
-    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
-    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $entryForm.Controls.Add($titleLabel)
-    $divider = New-Object System.Windows.Forms.Panel
-    $divider.Location = New-Object System.Drawing.Point(30, 60)
-    $divider.Size = New-Object System.Drawing.Size(520, 2)
-    $divider.BackColor = [System.Drawing.Color]::LightGray
-    $entryForm.Controls.Add($divider)
-
-    # --- Input Fields ---
-    $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
+    $allAssignments = Get-CutterOperations
+    $cuttersForOperation = $allAssignments.GetEnumerator() | Where-Object { $_.Value -eq $operation } | ForEach-Object { $_.Name } | Sort-Object
+    
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(580, 30); $titleLabel.Text = "POC HOUR ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
+    $divider = New-Object System.Windows.Forms.Panel; $divider.Location = New-Object System.Drawing.Point(30, 60); $divider.Size = New-Object System.Drawing.Size(520, 2); $divider.BackColor = [System.Drawing.Color]::LightGray; $entryForm.Controls.Add($divider)
     $hourTypes = @("VA", "DA", "PI", "MC")
-
-    # Cutter Label and Dropdown
-    $labelCutter = New-Object System.Windows.Forms.Label
-    $labelCutter.Location = New-Object System.Drawing.Point(30, 80)
-    $labelCutter.Size = New-Object System.Drawing.Size(120, 20)
-    $labelCutter.Text = "Select Cutter:"
-    $labelCutter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $entryForm.Controls.Add($labelCutter)
-    $vesselDropdown = New-Object System.Windows.Forms.ComboBox
-    $vesselDropdown.Location = New-Object System.Drawing.Point(30, 105)
-    $vesselDropdown.Size = New-Object System.Drawing.Size(180, 25)
-    $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9)
-    $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    $vesselDropdown.Items.AddRange($cutters)
+    $labelCutter = New-Object System.Windows.Forms.Label; $labelCutter.Location = New-Object System.Drawing.Point(30, 80); $labelCutter.Size = New-Object System.Drawing.Size(120, 20); $labelCutter.Text = "Select Cutter:"; $labelCutter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelCutter)
+    $vesselDropdown = New-Object System.Windows.Forms.ComboBox; $vesselDropdown.Location = New-Object System.Drawing.Point(30, 105); $vesselDropdown.Size = New-Object System.Drawing.Size(180, 25); $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $entryForm.Controls.Add($vesselDropdown)
+    if ($cuttersForOperation) { $vesselDropdown.Items.AddRange($cuttersForOperation) }
     $vesselDropdown.SelectedIndex = 0
-    $entryForm.Controls.Add($vesselDropdown)
 
-    # Event Date Label and DateTimePicker
-    $labelEventDate = New-Object System.Windows.Forms.Label
-    $labelEventDate.Location = New-Object System.Drawing.Point(230, 80)
-    $labelEventDate.Size = New-Object System.Drawing.Size(150, 20)
-    $labelEventDate.Text = "Date of Hours:"
-    $labelEventDate.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $entryForm.Controls.Add($labelEventDate)
-    $datePicker = New-Object System.Windows.Forms.DateTimePicker
-    $datePicker.Location = New-Object System.Drawing.Point(230, 105)
-    $datePicker.Size = New-Object System.Drawing.Size(120, 25)
-    $datePicker.Format = [System.Windows.Forms.DateTimePickerFormat]::Short
-    $entryForm.Controls.Add($datePicker)
-
-    # Hour Type Label and Dropdown
-    $labelHourType = New-Object System.Windows.Forms.Label
-    $labelHourType.Location = New-Object System.Drawing.Point(378, 80)
-    $labelHourType.Size = New-Object System.Drawing.Size(110, 20) # Widened label
-    $labelHourType.Text = "Hour Type:"
-    $labelHourType.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $entryForm.Controls.Add($labelHourType)
-    $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox
-    $hourTypeDropdown.Location = New-Object System.Drawing.Point(370, 105)
-    $hourTypeDropdown.Size = New-Object System.Drawing.Size(85, 25)
-    $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9)
-    $hourTypeDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    $hourTypeDropdown.Items.AddRange($hourTypes)
-    $hourTypeDropdown.SelectedIndex = 0
-    $entryForm.Controls.Add($hourTypeDropdown)
-
-    # Hours Label and Textbox
-    $labelHours = New-Object System.Windows.Forms.Label
-    $labelHours.Location = New-Object System.Drawing.Point(490, 80) # Shifted right
-    $labelHours.Size = New-Object System.Drawing.Size(90, 20)
-    $labelHours.Text = "Hours:"
-    $labelHours.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $entryForm.Controls.Add($labelHours)
-    $hoursInput = New-Object System.Windows.Forms.TextBox
-    $hoursInput.Location = New-Object System.Drawing.Point(490, 105) # Shifted right
-    $hoursInput.Size = New-Object System.Drawing.Size(60, 25)
-    $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9)
-    $entryForm.Controls.Add($hoursInput)
+    $labelEventDate = New-Object System.Windows.Forms.Label; $labelEventDate.Location = New-Object System.Drawing.Point(230, 80); $labelEventDate.Size = New-Object System.Drawing.Size(150, 20); $labelEventDate.Text = "Date of Hours:"; $labelEventDate.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelEventDate)
+    $datePicker = New-Object System.Windows.Forms.DateTimePicker; $datePicker.Location = New-Object System.Drawing.Point(230, 105); $datePicker.Size = New-Object System.Drawing.Size(120, 25); $datePicker.Format = [System.Windows.Forms.DateTimePickerFormat]::Short; $entryForm.Controls.Add($datePicker)
+    $labelHourType = New-Object System.Windows.Forms.Label; $labelHourType.Location = New-Object System.Drawing.Point(370, 80); $labelHourType.Size = New-Object System.Drawing.Size(120, 20); $labelHourType.Text = "Hour Type:"; $labelHourType.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelHourType)
+    $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox; $hourTypeDropdown.Location = New-Object System.Drawing.Point(370, 105); $hourTypeDropdown.Size = New-Object System.Drawing.Size(100, 25); $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $hourTypeDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $hourTypeDropdown.Items.AddRange($hourTypes); $hourTypeDropdown.SelectedIndex = 0; $entryForm.Controls.Add($hourTypeDropdown)
+    $labelHours = New-Object System.Windows.Forms.Label; $labelHours.Location = New-Object System.Drawing.Point(490, 80); $labelHours.Size = New-Object System.Drawing.Size(90, 20); $labelHours.Text = "Hours:"; $labelHours.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelHours)
+    $hoursInput = New-Object System.Windows.Forms.TextBox; $hoursInput.Location = New-Object System.Drawing.Point(490, 105); $hoursInput.Size = New-Object System.Drawing.Size(60, 25); $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9); $entryForm.Controls.Add($hoursInput)
+    $bottomDivider = New-Object System.Windows.Forms.Panel; $bottomDivider.Location = New-Object System.Drawing.Point(30, 190); $bottomDivider.Size = New-Object System.Drawing.Size(520, 2); $bottomDivider.BackColor = [System.Drawing.Color]::LightGray; $entryForm.Controls.Add($bottomDivider)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30, 210); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $entryForm.CancelButton = $backButton; $entryForm.Controls.Add($backButton)
+    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(450, 210); $submitButton.Size = New-Object System.Drawing.Size(100, 30); $submitButton.Text = 'Submit'; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
     
-    # --- Buttons and Bottom Divider ---
-    $bottomDivider = New-Object System.Windows.Forms.Panel
-    $bottomDivider.Location = New-Object System.Drawing.Point(30, 190)
-    $bottomDivider.Size = New-Object System.Drawing.Size(520, 2)
-    $bottomDivider.BackColor = [System.Drawing.Color]::LightGray
-    $entryForm.Controls.Add($bottomDivider)
-    $backButton = New-Object System.Windows.Forms.Button
-    $backButton.Location = New-Object System.Drawing.Point(30, 210)
-    $backButton.Size = New-Object System.Drawing.Size(80, 30)
-    $backButton.Text = 'Back'
-    $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
-    $backButton.BackColor = [System.Drawing.Color]::DimGray
-    $backButton.ForeColor = [System.Drawing.Color]::White
-    $backButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $backButton.FlatAppearance.BorderSize = 0
-    $entryForm.Controls.Add($backButton)
-    $submitButton = New-Object System.Windows.Forms.Button
-    $submitButton.Location = New-Object System.Drawing.Point(450, 210)
-    $submitButton.Size = New-Object System.Drawing.Size(100, 30)
-    $submitButton.Text = 'Submit'
-    $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $submitButton.BackColor = [System.Drawing.Color]::SeaGreen
-    $submitButton.ForeColor = [System.Drawing.Color]::White
-    $submitButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $submitButton.FlatAppearance.BorderSize = 0
-    $entryForm.Controls.Add($submitButton)
-    
-    # --- Click Events ---
-    $backButton.Add_Click({ $entryForm.Close() })
     $submitButton.Add_Click({
+        if (!$vesselDropdown.SelectedItem) {
+            [System.Windows.Forms.MessageBox]::Show("There are no cutters assigned to this operation to make an entry for.", "No Cutters Available")
+            return
+        }
         $selectedCutter = $vesselDropdown.SelectedItem.ToString()
         $selectedHourType = $hourTypeDropdown.SelectedItem.ToString()
         $enteredHours = $hoursInput.Text.Trim()
         $selectedEventDate = $datePicker.Value
         if ([string]::IsNullOrWhiteSpace($enteredHours)) {
-            [System.Windows.Forms.MessageBox]::Show("Please enter the number of hours.", "Input Missing", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            [System.Windows.Forms.MessageBox]::Show("Please enter the number of hours.", "Input Missing")
             return
         }
         if (-not ($enteredHours -match '^\d+(\.\d+)?$')) {
-            [System.Windows.Forms.MessageBox]::Show("Please enter a valid number for hours.", "Invalid Input", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            [System.Windows.Forms.MessageBox]::Show("Please enter a valid number for hours.", "Invalid Input")
             return
         }
-        Save-PocHourEntry $currentUser $selectedEventDate $selectedCutter $selectedHourType $enteredHours
-        [System.Windows.Forms.MessageBox]::Show("Successfully submitted $enteredHours hours for $selectedCutter ($selectedHourType).", "Entry Saved", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        Save-PocHourEntry $currentUser $selectedEventDate $operation $selectedCutter $selectedHourType $enteredHours
+        
+        [System.Windows.Forms.MessageBox]::Show("Successfully submitted $enteredHours hours for $selectedCutter.", "Entry Saved")
         $hoursInput.Text = ""
         $vesselDropdown.Focus()
     })
     $entryForm.ShowDialog()
 }
 
-function Show-PocDataViewScreen($parentForm) {
-    # Defines the data summary screen with a year filter.
+function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
+    # MODIFIED: The cutter dropdown now shows ALL cutters, regardless of operation.
+    $entryForm = New-Object System.Windows.Forms.Form
+    $entryForm.Text = "Taconite App - POC Hour Entry ($operation)" 
+    $entryForm.Size = New-Object System.Drawing.Size(580, 320)
+    $entryForm.StartPosition = 'CenterScreen'
+    $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+
+    # MODIFICATION: Get the list of ALL cutters, not just the ones for this operation.
+    $allAssignments = Get-CutterOperations
+    $allCutters = $allAssignments.Keys | Sort-Object
+    
+    # --- UI and Control Setup ---
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(580, 30); $titleLabel.Text = "POC HOUR ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
+    $divider = New-Object System.Windows.Forms.Panel; $divider.Location = New-Object System.Drawing.Point(30, 60); $divider.Size = New-Object System.Drawing.Size(520, 2); $divider.BackColor = [System.Drawing.Color]::LightGray; $entryForm.Controls.Add($divider)
+    $hourTypes = @("VA", "DA", "PI", "MC")
+    $labelCutter = New-Object System.Windows.Forms.Label; $labelCutter.Location = New-Object System.Drawing.Point(30, 80); $labelCutter.Size = New-Object System.Drawing.Size(120, 20); $labelCutter.Text = "Select Cutter:"; $labelCutter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelCutter)
+    $vesselDropdown = New-Object System.Windows.Forms.ComboBox; $vesselDropdown.Location = New-Object System.Drawing.Point(30, 105); $vesselDropdown.Size = New-Object System.Drawing.Size(180, 25); $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $entryForm.Controls.Add($vesselDropdown)
+    
+    # MODIFICATION: Populate dropdown with ALL cutters.
+    if ($allCutters) { $vesselDropdown.Items.AddRange($allCutters) }
+    $vesselDropdown.SelectedIndex = 0
+
+    $labelEventDate = New-Object System.Windows.Forms.Label; $labelEventDate.Location = New-Object System.Drawing.Point(230, 80); $labelEventDate.Size = New-Object System.Drawing.Size(150, 20); $labelEventDate.Text = "Date of Hours:"; $labelEventDate.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelEventDate)
+    $datePicker = New-Object System.Windows.Forms.DateTimePicker; $datePicker.Location = New-Object System.Drawing.Point(230, 105); $datePicker.Size = New-Object System.Drawing.Size(120, 25); $datePicker.Format = [System.Windows.Forms.DateTimePickerFormat]::Short; $entryForm.Controls.Add($datePicker)
+    $labelHourType = New-Object System.Windows.Forms.Label; $labelHourType.Location = New-Object System.Drawing.Point(370, 80); $labelHourType.Size = New-Object System.Drawing.Size(120, 20); $labelHourType.Text = "Hour Type:"; $labelHourType.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelHourType)
+    $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox; $hourTypeDropdown.Location = New-Object System.Drawing.Point(370, 105); $hourTypeDropdown.Size = New-Object System.Drawing.Size(100, 25); $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $hourTypeDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $hourTypeDropdown.Items.AddRange($hourTypes); $hourTypeDropdown.SelectedIndex = 0; $entryForm.Controls.Add($hourTypeDropdown)
+    $labelHours = New-Object System.Windows.Forms.Label; $labelHours.Location = New-Object System.Drawing.Point(490, 80); $labelHours.Size = New-Object System.Drawing.Size(90, 20); $labelHours.Text = "Hours:"; $labelHours.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelHours)
+    $hoursInput = New-Object System.Windows.Forms.TextBox; $hoursInput.Location = New-Object System.Drawing.Point(490, 105); $hoursInput.Size = New-Object System.Drawing.Size(60, 25); $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9); $entryForm.Controls.Add($hoursInput)
+    $bottomDivider = New-Object System.Windows.Forms.Panel; $bottomDivider.Location = New-Object System.Drawing.Point(30, 190); $bottomDivider.Size = New-Object System.Drawing.Size(520, 2); $bottomDivider.BackColor = [System.Drawing.Color]::LightGray; $entryForm.Controls.Add($bottomDivider)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30, 210); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $entryForm.CancelButton = $backButton; $entryForm.Controls.Add($backButton)
+    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(450, 210); $submitButton.Size = New-Object System.Drawing.Size(100, 30); $submitButton.Text = 'Submit'; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
+    
+    $submitButton.Add_Click({
+        if (!$vesselDropdown.SelectedItem) {
+            [System.Windows.Forms.MessageBox]::Show("There are no cutters available in the system.", "No Cutters Available")
+            return
+        }
+        $selectedCutter = $vesselDropdown.SelectedItem.ToString()
+        $selectedHourType = $hourTypeDropdown.SelectedItem.ToString()
+        $enteredHours = $hoursInput.Text.Trim()
+        $selectedEventDate = $datePicker.Value
+        if ([string]::IsNullOrWhiteSpace($enteredHours)) {
+            [System.Windows.Forms.MessageBox]::Show("Please enter the number of hours.", "Input Missing")
+            return
+        }
+        if (-not ($enteredHours -match '^\d+(\.\d+)?$')) {
+            [System.Windows.Forms.MessageBox]::Show("Please enter a valid number for hours.", "Invalid Input")
+            return
+        }
+        # The $operation variable passed into this function determines which file to save to.
+        Save-PocHourEntry $currentUser $selectedEventDate $operation $selectedCutter $selectedHourType $enteredHours
+        
+        [System.Windows.Forms.MessageBox]::Show("Successfully submitted $enteredHours hours for $selectedCutter against $operation.", "Entry Saved")
+        $hoursInput.Text = ""
+        $vesselDropdown.Focus()
+    })
+    $entryForm.ShowDialog()
+}
+
+
+function Show-PocDataViewScreen($parentForm, $operation) {
+    # MODIFIED: Always shows all cutters, but populates data based on the selected operation.
     $viewDataForm = New-Object System.Windows.Forms.Form
-    $viewDataForm.Text = 'POC Hours Summary'
+    $viewDataForm.Text = "POC Hours Summary ($operation)"
     $viewDataForm.Size = New-Object System.Drawing.Size(640, 480)
     $viewDataForm.StartPosition = 'CenterScreen'
     $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
-    # --- Year Filter Controls ---
-    $labelYearFilter = New-Object System.Windows.Forms.Label
-    $labelYearFilter.Location = New-Object System.Drawing.Point(20, 15)
-    $labelYearFilter.Size = New-Object System.Drawing.Size(100, 20)
-    $labelYearFilter.Text = "Filter by Year:"
-    $labelYearFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-    $viewDataForm.Controls.Add($labelYearFilter)
-    $yearComboBox = New-Object System.Windows.Forms.ComboBox
-    $yearComboBox.Location = New-Object System.Drawing.Point(130, 12)
-    $yearComboBox.Size = New-Object System.Drawing.Size(100, 25)
-    $yearComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    $viewDataForm.Controls.Add($yearComboBox)
-
-    # --- Data Grid View ---
-    $dataGridView = New-Object System.Windows.Forms.DataGridView
-    $dataGridView.Location = New-Object System.Drawing.Point(20, 50)
-    $dataGridView.Size = New-Object System.Drawing.Size(580, 320)
-    $dataGridView.AllowUserToAddRows = $false
-    $dataGridView.ReadOnly = $true
-    $dataGridView.AutoSizeColumnsMode = 'AllCells'
-    $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
-    $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10)
-    $dataGridView.RowHeadersVisible = $false
-    $dataGridView.Columns.Add("Cutter", "Cutter")
-    $dataGridView.Columns.Add("VA", "VA")
-    $dataGridView.Columns.Add("DA", "DA")
-    $dataGridView.Columns.Add("PI", "PI")
-    $dataGridView.Columns.Add("MC", "MC")
-    $dataGridView.Columns.Add("Total", "Cutter Total")
-    $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
-    $viewDataForm.Controls.Add($dataGridView)
+    # --- UI Controls (unchanged) ---
+    $labelYearFilter = New-Object System.Windows.Forms.Label; $labelYearFilter.Location = New-Object System.Drawing.Point(20, 15); $labelYearFilter.Size = New-Object System.Drawing.Size(100, 20); $labelYearFilter.Text = "Filter by Year:"; $labelYearFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($labelYearFilter)
+    $yearComboBox = New-Object System.Windows.Forms.ComboBox; $yearComboBox.Location = New-Object System.Drawing.Point(130, 12); $yearComboBox.Size = New-Object System.Drawing.Size(100, 25); $yearComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $viewDataForm.Controls.Add($yearComboBox)
+    $dataGridView = New-Object System.Windows.Forms.DataGridView; $dataGridView.Location = New-Object System.Drawing.Point(20, 50); $dataGridView.Size = New-Object System.Drawing.Size(580, 320); $dataGridView.AllowUserToAddRows = $false; $dataGridView.ReadOnly = $true; $dataGridView.AutoSizeColumnsMode = 'AllCells'; $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10); $dataGridView.RowHeadersVisible = $false; $dataGridView.Columns.Add("Cutter", "Cutter"); $dataGridView.Columns.Add("VA", "VA"); $dataGridView.Columns.Add("DA", "DA"); $dataGridView.Columns.Add("PI", "PI"); $dataGridView.Columns.Add("MC", "MC"); $dataGridView.Columns.Add("Total", "Cutter Total"); $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($dataGridView)
     
     # --- Logic to Update Table ---
     $updateTable = {
         param($filteredYear)
         $dataGridView.Rows.Clear()
-        $allEntries = Get-PocHourEntries
+        
+        # MODIFICATION: Always get the complete list of ALL cutters.
+        $allAssignments = Get-CutterOperations
+        $allCutters = $allAssignments.Keys | Sort-Object
+
+        # MODIFICATION: Get entries only for the specified operation by calling the updated helper function.
+        $operationEntries = Get-PocHourEntries -operation $operation
+
+        # Apply the year filter to the operation's entries.
         if ($filteredYear -and $filteredYear -ne "All Years") {
-            $filteredEntries = $allEntries | Where-Object { $_.EventDate.Year -eq $filteredYear }
+            $filteredEntries = $operationEntries | Where-Object { $_.EventDate.Year -eq $filteredYear }
         } else {
-            $filteredEntries = $allEntries
+            $filteredEntries = $operationEntries
         }
-        $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY")
+        
         $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum }
         $columnTotals = @{ "VA" = 0; "DA" = 0; "PI" = 0; "MC" = 0 }
-        foreach ($cutter in $cutters) {
+        
+        # MODIFICATION: Loop through ALL cutters, regardless of their current assignment.
+        foreach ($cutter in $allCutters) {
+            # The data source ($filteredEntries) is already specific to the operation.
             $va_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "VA"
             $da_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "DA"
             $pi_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "PI"
             $mc_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "MC"
             $rowTotal = $va_total + $da_total + $pi_total + $mc_total
             $dataGridView.Rows.Add($cutter, $va_total, $da_total, $pi_total, $mc_total, $rowTotal)
-            $columnTotals["VA"] += $va_total; $columnTotals["DA"] += $da_total;
-            $columnTotals["PI"] += $pi_total; $columnTotals["MC"] += $mc_total;
+            $columnTotals["VA"] += $va_total; $columnTotals["DA"] += $da_total; $columnTotals["PI"] += $pi_total; $columnTotals["MC"] += $mc_total;
         }
+        
         $grandTotal = $columnTotals.Values | Measure-Object -Sum | Select-Object -ExpandProperty Sum
         $dataGridView.Rows.Add("TOTALS", $columnTotals["VA"], $columnTotals["DA"], $columnTotals["PI"], $columnTotals["MC"], $grandTotal)
-        $totalsRow = $dataGridView.Rows[$dataGridView.Rows.Count - 1]
-        $totalsRow.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
-        $totalsRow.DefaultCellStyle.BackColor = [System.Drawing.Color]::LightGray
+        $totalsRow = $dataGridView.Rows[$dataGridView.Rows.Count - 1]; $totalsRow.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $totalsRow.DefaultCellStyle.BackColor = [System.Drawing.Color]::LightGray
     }
 
     # --- Event Handlers ---
-    $yearComboBox.add_SelectedIndexChanged({
-        &$updateTable -filteredYear $yearComboBox.SelectedItem
-    })
+    $yearComboBox.add_SelectedIndexChanged({ &$updateTable -filteredYear $yearComboBox.SelectedItem })
     
     $viewDataForm.add_Load({
         $currentYear = (Get-Date).Year
-        $allYears = (Get-PocHourEntries | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
+        # MODIFICATION: Populate year filter based on the correct operation-specific data file.
+        $allYears = (Get-PocHourEntries -operation $operation | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
         $yearComboBox.Items.Clear()
         $yearComboBox.Items.Add("All Years")
-        if ($allYears) {
-            $yearComboBox.Items.AddRange($allYears)
-        }
+        if ($allYears) { $yearComboBox.Items.AddRange($allYears) }
+        
         if ($yearComboBox.Items.Contains($currentYear)) {
             $yearComboBox.SelectedItem = $currentYear
         } else {
@@ -492,78 +661,9 @@ function Show-PocDataViewScreen($parentForm) {
     })
 
     # --- Back Button ---
-    $backButton = New-Object System.Windows.Forms.Button
-    $backButton.Location = New-Object System.Drawing.Point(265, 385)
-    $backButton.Size = New-Object System.Drawing.Size(90, 30)
-    $backButton.Text = 'Back'
-    $backButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $viewDataForm.Controls.Add($backButton)
-    $viewDataForm.CancelButton = $backButton
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(265, 385); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $viewDataForm.Controls.Add($backButton); $viewDataForm.CancelButton = $backButton
     
     $viewDataForm.ShowDialog()
-}
-
-function Show-PocSelectionScreen($parentForm, $currentUser) {
-    # Shows the selection screen for "Data Entry" or "View Data".
-    $selectionForm = New-Object System.Windows.Forms.Form
-    $selectionForm.Text = 'Taconite App - Cutter POCs'
-    $selectionForm.Size = New-Object System.Drawing.Size(320, 260)
-    $selectionForm.StartPosition = 'CenterScreen'
-    $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
-    $titleLabel.Size = New-Object System.Drawing.Size(320, 30)
-    $titleLabel.Text = "CUTTER POCS"
-    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
-    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $selectionForm.Controls.Add($titleLabel)
-    $divider = New-Object System.Windows.Forms.Panel
-    $divider.Location = New-Object System.Drawing.Point(30, 60)
-    $divider.Size = New-Object System.Drawing.Size(240, 2)
-    $divider.BackColor = [System.Drawing.Color]::LightGray
-    $selectionForm.Controls.Add($divider)
-    $dataEntryButton = New-Object System.Windows.Forms.Button
-    $dataEntryButton.Location = New-Object System.Drawing.Point(40, 80)
-    $dataEntryButton.Size = New-Object System.Drawing.Size(110, 60)
-    $dataEntryButton.Text = 'Data Entry'
-    $dataEntryButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $dataEntryButton.BackColor = [System.Drawing.Color]::SteelBlue
-    $dataEntryButton.ForeColor = [System.Drawing.Color]::White
-    $dataEntryButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $dataEntryButton.FlatAppearance.BorderSize = 0
-    $selectionForm.Controls.Add($dataEntryButton)
-    $viewDataButton = New-Object System.Windows.Forms.Button
-    $viewDataButton.Location = New-Object System.Drawing.Point(160, 80)
-    $viewDataButton.Size = New-Object System.Drawing.Size(110, 60)
-    $viewDataButton.Text = 'View Data'
-    $viewDataButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $viewDataButton.BackColor = [System.Drawing.Color]::DarkSlateGray
-    $viewDataButton.ForeColor = [System.Drawing.Color]::White
-    $viewDataButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $viewDataButton.FlatAppearance.BorderSize = 0
-    $selectionForm.Controls.Add($viewDataButton)
-    $bottomDivider = New-Object System.Windows.Forms.Panel
-    $bottomDivider.Location = New-Object System.Drawing.Point(30, 160)
-    $bottomDivider.Size = New-Object System.Drawing.Size(240, 2)
-    $bottomDivider.BackColor = [System.Drawing.Color]::LightGray
-    $selectionForm.Controls.Add($bottomDivider)
-    $backButton = New-Object System.Windows.Forms.Button
-    $backButton.Location = New-Object System.Drawing.Point(115, 175)
-    $backButton.Size = New-Object System.Drawing.Size(80, 30)
-    $backButton.Text = 'Back'
-    $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
-    $backButton.BackColor = [System.Drawing.Color]::DimGray
-    $backButton.ForeColor = [System.Drawing.Color]::White
-    $backButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $backButton.FlatAppearance.BorderSize = 0
-    $selectionForm.Controls.Add($backButton)
-    
-    $dataEntryButton.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser })
-    $viewDataButton.Add_Click({ Show-PocDataViewScreen $selectionForm })
-    $backButton.Add_Click({ $selectionForm.Close() })
-    
-    $selectionForm.ShowDialog()
 }
 
 function Show-LoginForm {
