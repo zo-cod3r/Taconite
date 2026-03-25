@@ -1,3 +1,5 @@
+#Perfect small scale of counting numbers into a table on another screen
+
 # Load necessary assemblies for GUI
 Add-Type -AssemblyName System.Windows.Forms;
 Add-Type -AssemblyName System.Drawing;
