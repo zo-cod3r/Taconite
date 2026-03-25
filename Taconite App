@@ -1,17 +1,3 @@
-# TACONITE APP
-
-# 1. Load Assemblies
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-
-# 2. Define File Paths
-$logFilePath = "$PSScriptRoot\\taconite_log.txt"
-$accountsFilePath = "$PSScriptRoot\\taconite_accounts.txt"
-$cutterLogPath = "$PSScriptRoot\\cutter_movements_log.txt"
-$cutterStatusPath = "$PSScriptRoot\\cutter_status.txt"
-# ADDED: New file path for POC hour entries
-$pocHoursPath = "$PSScriptRoot\\poc_hours.txt"
-
 # TACONITE APP - FULLY UPDATED
 
 # 1. Load Assemblies
