@@ -6,8 +6,8 @@ Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.ComponentModel
 
 # 2. Define Global File Paths
-$logFilePath = "$PSScriptRoot\taconite_log.txt"
-$accountsFilePath = "$PSScriptRoot\taconite_accounts.txt"
+$logFilePath = "$PSScriptRoot\signin_log.txt"
+$accountsFilePath = "$PSScriptRoot\accounts.txt"
 $cutterLogPath = "$PSScriptRoot\cutter_movements_log.txt"
 $cutterStatusPath = "$PSScriptRoot\cutter_status.txt"
 $pocHoursPath = "$PSScriptRoot\poc_hours.txt"
@@ -45,6 +45,13 @@ function Log-CutterUpdate($username, $vessel, $newStatus) {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] User: $username | Vessel: $vessel | Updated Status To: $newStatus"
     Add-Content -Path $cutterLogPath -Value $logEntry
+}
+
+function Log-OperationAssignment($username, $cutter, $operation) {
+    # ADDED: Logs when a user changes a cutter's operation assignment.
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] User: $username | Assigned Cutter: $cutter to Operation: $operation"
+    Add-Content -Path $operationAssignmentLogPath -Value $logEntry
 }
 
 function Save-PocHourEntry($username, $eventDate, $operation, $cutter, $hourType, $hours) {
@@ -391,6 +398,10 @@ function Show-CutterMovements($parentForm, $currentUser) {
         $assignments = Get-CutterOperations
         $assignments[$selectedVessel] = $selectedOp
         Save-CutterOperations $assignments
+        
+        # ADDED: Call the new logging function to record the change.
+        Log-OperationAssignment $currentUser $selectedVessel $selectedOp
+        
         [System.Windows.Forms.MessageBox]::Show("$selectedVessel has been assigned to $selectedOp.", "Assignment Updated")
         &$rebuildDisplay
     })
@@ -401,6 +412,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     
     $cutterForm.ShowDialog()
 }
+
 
 function Show-PocSelectionScreen($parentForm, $currentUser) {
     # MODIFIED: Added a red "View All Data" button at the bottom.
