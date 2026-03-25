@@ -63,31 +63,42 @@ function Save-PocHourEntry($username, $eventDate, $operation, $cutter, $hourType
 }
 
 function Get-PocHourEntries($operation) {
-    # MODIFIED: Reads from a different file based on the operation.
+    # MODIFIED: Can now read from a specific file or combine both.
     $entries = New-Object System.ComponentModel.BindingList[PSObject]
-    
-    # Choose the correct file path to read from.
-    $targetPath = if ($operation -eq "Operation TACONITE") { $pocHoursTaconitePath } else { $pocHoursCoalShovelPath }
+    $pathsToRead = @()
 
-    if (Test-Path $targetPath) {
-        Get-Content $targetPath | ForEach-Object {
-            # The format is now 6 columns again.
-            $parts = $_ -split '\|'
-            if ($parts.Length -eq 6) {
-                $entry = [PSCustomObject]@{
-                    Timestamp = $parts[0].Trim()
-                    User      = $parts[1].Trim()
-                    EventDate = [datetime]$parts[2].Trim()
-                    Cutter    = $parts[3].Trim()
-                    HourType  = $parts[4].Trim()
-                    Hours     = [double]$parts[5].Trim()
+    # Determine which file(s) to read based on the operation parameter.
+    if ($operation -eq "Operation TACONITE") {
+        $pathsToRead += $pocHoursTaconitePath
+    } elseif ($operation -eq "Operation COAL SHOVEL") {
+        $pathsToRead += $pocHoursCoalShovelPath
+    } elseif ($operation -eq "All Operations") {
+        $pathsToRead += $pocHoursTaconitePath
+        $pathsToRead += $pocHoursCoalShovelPath
+    }
+
+    # Loop through the selected path(s) and read the data.
+    foreach ($path in $pathsToRead) {
+        if (Test-Path $path) {
+            Get-Content $path | ForEach-Object {
+                $parts = $_ -split '\|'
+                if ($parts.Length -eq 6) {
+                    $entry = [PSCustomObject]@{
+                        Timestamp = $parts[0].Trim()
+                        User      = $parts[1].Trim()
+                        EventDate = [datetime]$parts[2].Trim()
+                        Cutter    = $parts[3].Trim()
+                        HourType  = $parts[4].Trim()
+                        Hours     = [double]$parts[5].Trim()
+                    }
+                    $entries.Add($entry)
                 }
-                $entries.Add($entry)
             }
         }
     }
     return $entries
 }
+
 
 
 function Get-CutterStatuses {
@@ -392,70 +403,36 @@ function Show-CutterMovements($parentForm, $currentUser) {
 }
 
 function Show-PocSelectionScreen($parentForm, $currentUser) {
-    # MODIFIED: Redesigned into a two-column layout for TACONITE and COAL SHOVEL.
+    # MODIFIED: Added a red "View All Data" button at the bottom.
     $selectionForm = New-Object System.Windows.Forms.Form
     $selectionForm.Text = 'Taconite App - Cutter POCs'
-    $selectionForm.Size = New-Object System.Drawing.Size(500, 320)
+    $selectionForm.Size = New-Object System.Drawing.Size(500, 380) # Increased height for new button
     $selectionForm.StartPosition = 'CenterScreen'
     $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
     # --- TACONITE COLUMN (LEFT) ---
-    $taconiteHeader = New-Object System.Windows.Forms.Label
-    $taconiteHeader.Location = New-Object System.Drawing.Point(0, 20)
-    $taconiteHeader.Size = New-Object System.Drawing.Size(250, 30)
-    $taconiteHeader.Text = "TACONITE"
-    $taconiteHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
-    $taconiteHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $selectionForm.Controls.Add($taconiteHeader)
-
-    $taconiteDataEntryBtn = New-Object System.Windows.Forms.Button
-    $taconiteDataEntryBtn.Location = New-Object System.Drawing.Point(40, 70)
-    $taconiteDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60)
-    $taconiteDataEntryBtn.Text = 'Data Entry'
-    $taconiteDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $taconiteDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue
-    $taconiteDataEntryBtn.ForeColor = [System.Drawing.Color]::White
-    $selectionForm.Controls.Add($taconiteDataEntryBtn)
-
-    $taconiteViewDataBtn = New-Object System.Windows.Forms.Button
-    $taconiteViewDataBtn.Location = New-Object System.Drawing.Point(40, 140)
-    $taconiteViewDataBtn.Size = New-Object System.Drawing.Size(170, 60)
-    $taconiteViewDataBtn.Text = 'View Data'
-    $taconiteViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $taconiteViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray
-    $taconiteViewDataBtn.ForeColor = [System.Drawing.Color]::White
-    $selectionForm.Controls.Add($taconiteViewDataBtn)
+    $taconiteHeader = New-Object System.Windows.Forms.Label; $taconiteHeader.Location = New-Object System.Drawing.Point(0, 20); $taconiteHeader.Size = New-Object System.Drawing.Size(250, 30); $taconiteHeader.Text = "TACONITE"; $taconiteHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $taconiteHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $selectionForm.Controls.Add($taconiteHeader)
+    $taconiteDataEntryBtn = New-Object System.Windows.Forms.Button; $taconiteDataEntryBtn.Location = New-Object System.Drawing.Point(40, 70); $taconiteDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60); $taconiteDataEntryBtn.Text = 'Data Entry'; $taconiteDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $taconiteDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue; $taconiteDataEntryBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($taconiteDataEntryBtn)
+    $taconiteViewDataBtn = New-Object System.Windows.Forms.Button; $taconiteViewDataBtn.Location = New-Object System.Drawing.Point(40, 140); $taconiteViewDataBtn.Size = New-Object System.Drawing.Size(170, 60); $taconiteViewDataBtn.Text = 'View Data'; $taconiteViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $taconiteViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray; $taconiteViewDataBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($taconiteViewDataBtn)
 
     # --- COAL SHOVEL COLUMN (RIGHT) ---
-    $coalShovelHeader = New-Object System.Windows.Forms.Label
-    $coalShovelHeader.Location = New-Object System.Drawing.Point(250, 20)
-    $coalShovelHeader.Size = New-Object System.Drawing.Size(250, 30)
-    $coalShovelHeader.Text = "COAL SHOVEL"
-    $coalShovelHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold)
-    $coalShovelHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $selectionForm.Controls.Add($coalShovelHeader)
+    $coalShovelHeader = New-Object System.Windows.Forms.Label; $coalShovelHeader.Location = New-Object System.Drawing.Point(250, 20); $coalShovelHeader.Size = New-Object System.Drawing.Size(250, 30); $coalShovelHeader.Text = "COAL SHOVEL"; $coalShovelHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $coalShovelHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $selectionForm.Controls.Add($coalShovelHeader)
+    $coalShovelDataEntryBtn = New-Object System.Windows.Forms.Button; $coalShovelDataEntryBtn.Location = New-Object System.Drawing.Point(290, 70); $coalShovelDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60); $coalShovelDataEntryBtn.Text = 'Data Entry'; $coalShovelDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $coalShovelDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue; $coalShovelDataEntryBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($coalShovelDataEntryBtn)
+    $coalShovelViewDataBtn = New-Object System.Windows.Forms.Button; $coalShovelViewDataBtn.Location = New-Object System.Drawing.Point(290, 140); $coalShovelViewDataBtn.Size = New-Object System.Drawing.Size(170, 60); $coalShovelViewDataBtn.Text = 'View Data'; $coalShovelViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $coalShovelViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray; $coalShovelViewDataBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($coalShovelViewDataBtn)
 
-    $coalShovelDataEntryBtn = New-Object System.Windows.Forms.Button
-    $coalShovelDataEntryBtn.Location = New-Object System.Drawing.Point(290, 70)
-    $coalShovelDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60)
-    $coalShovelDataEntryBtn.Text = 'Data Entry'
-    $coalShovelDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $coalShovelDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue
-    $coalShovelDataEntryBtn.ForeColor = [System.Drawing.Color]::White
-    $selectionForm.Controls.Add($coalShovelDataEntryBtn)
-
-    $coalShovelViewDataBtn = New-Object System.Windows.Forms.Button
-    $coalShovelViewDataBtn.Location = New-Object System.Drawing.Point(290, 140)
-    $coalShovelViewDataBtn.Size = New-Object System.Drawing.Size(170, 60)
-    $coalShovelViewDataBtn.Text = 'View Data'
-    $coalShovelViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $coalShovelViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray
-    $coalShovelViewDataBtn.ForeColor = [System.Drawing.Color]::White
-    $selectionForm.Controls.Add($coalShovelViewDataBtn)
+    # --- ADDED: "View All Data" Button ---
+    $viewAllDataBtn = New-Object System.Windows.Forms.Button
+    $viewAllDataBtn.Location = New-Object System.Drawing.Point(165, 230)
+    $viewAllDataBtn.Size = New-Object System.Drawing.Size(170, 45)
+    $viewAllDataBtn.Text = "View All Data"
+    $viewAllDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $viewAllDataBtn.BackColor = [System.Drawing.Color]::Firebrick
+    $viewAllDataBtn.ForeColor = [System.Drawing.Color]::White
+    $selectionForm.Controls.Add($viewAllDataBtn)
 
     # --- BACK BUTTON ---
     $backButton = New-Object System.Windows.Forms.Button
-    $backButton.Location = New-Object System.Drawing.Point(210, 240)
+    $backButton.Location = New-Object System.Drawing.Point(210, 295)
     $backButton.Size = New-Object System.Drawing.Size(80, 30)
     $backButton.Text = 'Back'
     $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
@@ -470,8 +447,12 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
     $coalShovelDataEntryBtn.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser "Operation COAL SHOVEL" })
     $coalShovelViewDataBtn.Add_Click({ Show-PocDataViewScreen $selectionForm "Operation COAL SHOVEL" })
 
+    # ADDED: Click event for the new button
+    $viewAllDataBtn.Add_Click({ Show-PocDataViewScreen $selectionForm "All Operations" })
+
     $selectionForm.ShowDialog()
 }
+
 
 function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
     # MODIFIED: Accepts an $operation parameter to filter cutters and save data correctly.
@@ -590,7 +571,7 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
 
 
 function Show-PocDataViewScreen($parentForm, $operation) {
-    # MODIFIED: Always shows all cutters, but populates data based on the selected operation.
+    # MODIFIED: Correctly handles the "All Operations" parameter.
     $viewDataForm = New-Object System.Windows.Forms.Form
     $viewDataForm.Text = "POC Hours Summary ($operation)"
     $viewDataForm.Size = New-Object System.Drawing.Size(640, 480)
@@ -607,14 +588,12 @@ function Show-PocDataViewScreen($parentForm, $operation) {
         param($filteredYear)
         $dataGridView.Rows.Clear()
         
-        # MODIFICATION: Always get the complete list of ALL cutters.
         $allAssignments = Get-CutterOperations
         $allCutters = $allAssignments.Keys | Sort-Object
 
-        # MODIFICATION: Get entries only for the specified operation by calling the updated helper function.
+        # This now correctly gets either one operation's data or the combined data.
         $operationEntries = Get-PocHourEntries -operation $operation
 
-        # Apply the year filter to the operation's entries.
         if ($filteredYear -and $filteredYear -ne "All Years") {
             $filteredEntries = $operationEntries | Where-Object { $_.EventDate.Year -eq $filteredYear }
         } else {
@@ -624,9 +603,7 @@ function Show-PocDataViewScreen($parentForm, $operation) {
         $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum }
         $columnTotals = @{ "VA" = 0; "DA" = 0; "PI" = 0; "MC" = 0 }
         
-        # MODIFICATION: Loop through ALL cutters, regardless of their current assignment.
         foreach ($cutter in $allCutters) {
-            # The data source ($filteredEntries) is already specific to the operation.
             $va_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "VA"
             $da_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "DA"
             $pi_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "PI"
@@ -646,7 +623,7 @@ function Show-PocDataViewScreen($parentForm, $operation) {
     
     $viewDataForm.add_Load({
         $currentYear = (Get-Date).Year
-        # MODIFICATION: Populate year filter based on the correct operation-specific data file.
+        # This now gets years from the correct data source (single or combined).
         $allYears = (Get-PocHourEntries -operation $operation | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
         $yearComboBox.Items.Clear()
         $yearComboBox.Items.Add("All Years")
@@ -665,6 +642,7 @@ function Show-PocDataViewScreen($parentForm, $operation) {
     
     $viewDataForm.ShowDialog()
 }
+
 
 function Show-LoginForm {
     # This function defines the main login window.
