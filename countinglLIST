@@ -1,3 +1,5 @@
+#So close to perfect, but showed totals as lists instead of a table
+
 # Load necessary assemblies for GUI
 Add-Type -AssemblyName System.Windows.Forms;
 Add-Type -AssemblyName System.Drawing;
