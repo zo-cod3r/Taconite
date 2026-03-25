@@ -156,14 +156,13 @@ function Save-CutterOperations($assignments) {
     Set-Content -Path $operationsFilePath -Value $lines
 }
 
-
 # 4. GUI Screen Functions
 
 function Show-CutterMovements($parentForm, $currentUser) {
-    # --- FORM INITIALIZATION ---
+    # --- FORM INITIALIZATION (WIDER LAYOUT) ---
     $cutterForm = New-Object System.Windows.Forms.Form
     $cutterForm.Text = 'Taconite App - Cutter Movements'
-    $cutterForm.Size = New-Object System.Drawing.Size(640, 780) # Increased height for new sections
+    $cutterForm.Size = New-Object System.Drawing.Size(1100, 820) # Significantly wider for side-by-side layout
     $cutterForm.StartPosition = 'CenterScreen'
     $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
@@ -172,86 +171,92 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $operations = @("Operation TACONITE", "Operation COAL SHOVEL")
     $statusLabels = @{}
     $updateInfoLabels = @{}
-    $mainPanel = New-Object System.Windows.Forms.Panel # A panel to hold the dynamic tables
-    $mainPanel.Location = New-Object System.Drawing.Point(0, 290)
-    $mainPanel.Size = New-Object System.Drawing.Size(640, 420)
-    $mainPanel.AutoScroll = $true # Allow scrolling if content is too long
+
+    # --- LEFT COLUMN: PANEL FOR DISPLAYING TABLES ---
+    $mainPanel = New-Object System.Windows.Forms.Panel
+    $mainPanel.Location = New-Object System.Drawing.Point(20, 80)
+    $mainPanel.Size = New-Object System.Drawing.Size(620, 680)
+    $mainPanel.AutoScroll = $true
     $cutterForm.Controls.Add($mainPanel)
 
-    # --- TITLE ---
+    # --- TITLE (SPANS THE TOP) ---
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Location = New-Object System.Drawing.Point(0, 20)
-    $titleLabel.Size = New-Object System.Drawing.Size(640, 40)
+    $titleLabel.Size = New-Object System.Drawing.Size(1100, 40)
     $titleLabel.Text = "CUTTER MOVEMENTS"
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $cutterForm.Controls.Add($titleLabel)
 
-    # --- UPDATE STATUS PANEL ---
+    # --- RIGHT COLUMN: ACTION PANELS ---
+
+    # UPDATE STATUS PANEL (MOVED TO THE RIGHT)
     $updatePanel = New-Object System.Windows.Forms.Panel
-    $updatePanel.Location = New-Object System.Drawing.Point(30, 80)
-    $updatePanel.Size = New-Object System.Drawing.Size(560, 90)
+    $updatePanel.Location = New-Object System.Drawing.Point(660, 80)
+    $updatePanel.Size = New-Object System.Drawing.Size(400, 130)
     $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230, 238, 250)
+    $updatePanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
     $cutterForm.Controls.Add($updatePanel)
     $updateTitle = New-Object System.Windows.Forms.Label
-    $updateTitle.Location = New-Object System.Drawing.Point(10, 8)
+    $updateTitle.Location = New-Object System.Drawing.Point(15, 15)
     $updateTitle.Size = New-Object System.Drawing.Size(200, 20)
     $updateTitle.Text = "Update Cutter Status"
-    $updateTitle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $updateTitle.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
     $updatePanel.Controls.Add($updateTitle)
     $vesselDropdownStatus = New-Object System.Windows.Forms.ComboBox
-    $vesselDropdownStatus.Location = New-Object System.Drawing.Point(10, 32)
+    $vesselDropdownStatus.Location = New-Object System.Drawing.Point(15, 45)
     $vesselDropdownStatus.Size = New-Object System.Drawing.Size(200, 25)
     $vesselDropdownStatus.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
     $vesselDropdownStatus.Items.AddRange($cutters)
     $vesselDropdownStatus.SelectedIndex = 0
     $updatePanel.Controls.Add($vesselDropdownStatus)
     $statusInput = New-Object System.Windows.Forms.TextBox
-    $statusInput.Location = New-Object System.Drawing.Point(220, 32)
-    $statusInput.Size = New-Object System.Drawing.Size(230, 25)
+    $statusInput.Location = New-Object System.Drawing.Point(15, 80)
+    $statusInput.Size = New-Object System.Drawing.Size(275, 25)
     $statusInput.ForeColor = [System.Drawing.Color]::Gray
     $statusInput.Text = "Enter new status..."
     $statusInput.Add_Enter({ if ($statusInput.Text -eq "Enter new status...") { $statusInput.Text = ""; $statusInput.ForeColor = [System.Drawing.Color]::Black } })
     $statusInput.Add_Leave({ if ($statusInput.Text -eq "") { $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray } })
     $updatePanel.Controls.Add($statusInput)
     $updateBtn = New-Object System.Windows.Forms.Button
-    $updateBtn.Location = New-Object System.Drawing.Point(460, 30)
-    $updateBtn.Size = New-Object System.Drawing.Size(90, 28)
+    $updateBtn.Location = New-Object System.Drawing.Point(300, 78)
+    $updateBtn.Size = New-Object System.Drawing.Size(80, 28)
     $updateBtn.Text = "Update"
     $updateBtn.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $updateBtn.BackColor = [System.Drawing.Color]::SteelBlue
     $updateBtn.ForeColor = [System.Drawing.Color]::White
     $updatePanel.Controls.Add($updateBtn)
 
-    # --- ASSIGN OPERATION PANEL ---
+    # ASSIGN OPERATION PANEL (MOVED TO THE RIGHT)
     $assignPanel = New-Object System.Windows.Forms.Panel
-    $assignPanel.Location = New-Object System.Drawing.Point(30, 180)
-    $assignPanel.Size = New-Object System.Drawing.Size(560, 90)
+    $assignPanel.Location = New-Object System.Drawing.Point(660, 230)
+    $assignPanel.Size = New-Object System.Drawing.Size(400, 130)
     $assignPanel.BackColor = [System.Drawing.Color]::FromArgb(250, 245, 230)
+    $assignPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
     $cutterForm.Controls.Add($assignPanel)
     $assignTitle = New-Object System.Windows.Forms.Label
-    $assignTitle.Location = New-Object System.Drawing.Point(10, 8)
-    $assignTitle.Size = New-Object System.Drawing.Size(200, 20)
+    $assignTitle.Location = New-Object System.Drawing.Point(15, 15)
+    $assignTitle.Size = New-Object System.Drawing.Size(250, 20)
     $assignTitle.Text = "Assign Cutter to Operation"
-    $assignTitle.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+    $assignTitle.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
     $assignPanel.Controls.Add($assignTitle)
     $vesselDropdownAssign = New-Object System.Windows.Forms.ComboBox
-    $vesselDropdownAssign.Location = New-Object System.Drawing.Point(10, 32)
+    $vesselDropdownAssign.Location = New-Object System.Drawing.Point(15, 45)
     $vesselDropdownAssign.Size = New-Object System.Drawing.Size(200, 25)
     $vesselDropdownAssign.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
     $vesselDropdownAssign.Items.AddRange($cutters)
     $vesselDropdownAssign.SelectedIndex = 0
     $assignPanel.Controls.Add($vesselDropdownAssign)
     $operationDropdown = New-Object System.Windows.Forms.ComboBox
-    $operationDropdown.Location = New-Object System.Drawing.Point(220, 32)
-    $operationDropdown.Size = New-Object System.Drawing.Size(230, 25)
+    $operationDropdown.Location = New-Object System.Drawing.Point(15, 80)
+    $operationDropdown.Size = New-Object System.Drawing.Size(275, 25)
     $operationDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
     $operationDropdown.Items.AddRange($operations)
     $operationDropdown.SelectedIndex = 0
     $assignPanel.Controls.Add($operationDropdown)
     $assignBtn = New-Object System.Windows.Forms.Button
-    $assignBtn.Location = New-Object System.Drawing.Point(460, 30)
-    $assignBtn.Size = New-Object System.Drawing.Size(90, 28)
+    $assignBtn.Location = New-Object System.Drawing.Point(300, 78)
+    $assignBtn.Size = New-Object System.Drawing.Size(80, 28)
     $assignBtn.Text = "Assign"
     $assignBtn.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $assignBtn.BackColor = [System.Drawing.Color]::DarkGoldenrod
@@ -269,12 +274,10 @@ function Show-CutterMovements($parentForm, $currentUser) {
 
         $currentY = 10 # Starting Y position inside the main panel
         
-        # Loop through each defined operation
         foreach ($operation in $operations) {
-            # --- CREATE THE HEADER FOR THE OPERATION ---
             $headerLabel = New-Object System.Windows.Forms.Label
-            $headerLabel.Location = New-Object System.Drawing.Point(30, $currentY)
-            $headerLabel.Size = New-Object System.Drawing.Size(560, 30)
+            $headerLabel.Location = New-Object System.Drawing.Point(10, $currentY)
+            $headerLabel.Size = New-Object System.Drawing.Size(580, 30)
             $headerLabel.Text = $operation.ToUpper()
             $headerLabel.Font = New-Object System.Drawing.Font("Arial", 14, [System.Drawing.FontStyle]::Bold)
             $headerLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -282,34 +285,29 @@ function Show-CutterMovements($parentForm, $currentUser) {
             $mainPanel.Controls.Add($headerLabel)
             $currentY += $headerLabel.Height + 5
 
-            # Get only the cutters assigned to the current operation
             $assignedCutters = $cutterAssignments.GetEnumerator() | Where-Object { $_.Value -eq $operation } | ForEach-Object { $_.Name } | Sort-Object
 
             if ($assignedCutters) {
-                # --- CREATE THE TABLE HEADERS (Cutter, Updated, Status) ---
                 $headerPanel = New-Object System.Windows.Forms.Panel
-                $headerPanel.Location = New-Object System.Drawing.Point(30, $currentY)
-                $headerPanel.Size = New-Object System.Drawing.Size(560, 25)
+                $headerPanel.Location = New-Object System.Drawing.Point(10, $currentY)
+                $headerPanel.Size = New-Object System.Drawing.Size(580, 25)
                 $mainPanel.Controls.Add($headerPanel)
                 $headerName = New-Object System.Windows.Forms.Label; $headerName.Text = "Cutter"; $headerName.Location = New-Object System.Drawing.Point(10, 0); $headerName.Size = New-Object System.Drawing.Size(150, 25); $headerName.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerPanel.Controls.Add($headerName)
-                $headerUpdated = New-Object System.Windows.Forms.Label; $headerUpdated.Text = "Last Updated"; $headerUpdated.Location = New-Object System.Drawing.Point(170, 0); $headerUpdated.Size = New-Object System.Drawing.Size(160, 25); $headerUpdated.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerUpdated.TextAlign = "MiddleCenter"; $headerPanel.Controls.Add($headerUpdated)
-                $headerStatus = New-Object System.Windows.Forms.Label; $headerStatus.Text = "Movement / Status"; $headerStatus.Location = New-Object System.Drawing.Point(340, 0); $headerStatus.Size = New-Object System.Drawing.Size(210, 25); $headerStatus.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerPanel.Controls.Add($headerStatus)
+                $headerUpdated = New-Object System.Windows.Forms.Label; $headerUpdated.Text = "Last Updated"; $headerUpdated.Location = New-Object System.Drawing.Point(190, 0); $headerUpdated.Size = New-Object System.Drawing.Size(160, 25); $headerUpdated.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerUpdated.TextAlign = "MiddleCenter"; $headerPanel.Controls.Add($headerUpdated)
+                $headerStatus = New-Object System.Windows.Forms.Label; $headerStatus.Text = "Movement / Status"; $headerStatus.Location = New-Object System.Drawing.Point(360, 0); $headerStatus.Size = New-Object System.Drawing.Size(210, 25); $headerStatus.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerPanel.Controls.Add($headerStatus)
                 $currentY += $headerPanel.Height
 
-                # --- CREATE A ROW FOR EACH CUTTER IN THIS OPERATION ---
                 $i = 0
                 foreach ($cutterName in $assignedCutters) {
                     $rowPanel = New-Object System.Windows.Forms.Panel
-                    $rowPanel.Location = New-Object System.Drawing.Point(30, $currentY)
-                    $rowPanel.Size = New-Object System.Drawing.Size(560, 45)
+                    $rowPanel.Location = New-Object System.Drawing.Point(10, $currentY)
+                    $rowPanel.Size = New-Object System.Drawing.Size(580, 45)
                     $rowPanel.BackColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240,240,245) }
                     $mainPanel.Controls.Add($rowPanel)
                     
-                    $nameLabel = New-Object System.Windows.Forms.Label; $nameLabel.Text = $cutterName; $nameLabel.Location = New-Object System.Drawing.Point(10, 10); $nameLabel.Size = New-Object System.Drawing.Size(150, 25); $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $rowPanel.Controls.Add($nameLabel)
-                    
-                    $updateInfoLabel = New-Object System.Windows.Forms.Label; $updateInfoLabel.Location = New-Object System.Drawing.Point(170, 2); $updateInfoLabel.Size = New-Object System.Drawing.Size(160, 40); $updateInfoLabel.Font = New-Object System.Drawing.Font("Arial", 9); $updateInfoLabel.TextAlign = "MiddleCenter"; $rowPanel.Controls.Add($updateInfoLabel)
-                    
-                    $statusLabel = New-Object System.Windows.Forms.Label; $statusLabel.Location = New-Object System.Drawing.Point(340, 10); $statusLabel.Size = New-Object System.Drawing.Size(210, 25); $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10); $rowPanel.Controls.Add($statusLabel)
+                    $nameLabel = New-Object System.Windows.Forms.Label; $nameLabel.Text = $cutterName; $nameLabel.Location = New-Object System.Drawing.Point(10, 10); $nameLabel.Size = New-Object System.Drawing.Size(170, 25); $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $rowPanel.Controls.Add($nameLabel)
+                    $updateInfoLabel = New-Object System.Windows.Forms.Label; $updateInfoLabel.Location = New-Object System.Drawing.Point(190, 2); $updateInfoLabel.Size = New-Object System.Drawing.Size(160, 40); $updateInfoLabel.Font = New-Object System.Drawing.Font("Arial", 9); $updateInfoLabel.TextAlign = "MiddleCenter"; $rowPanel.Controls.Add($updateInfoLabel)
+                    $statusLabel = New-Object System.Windows.Forms.Label; $statusLabel.Location = New-Object System.Drawing.Point(360, 10); $statusLabel.Size = New-Object System.Drawing.Size(210, 25); $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10); $rowPanel.Controls.Add($statusLabel)
                     
                     if ($currentStatuses.ContainsKey($cutterName)) {
                         $statusData = $currentStatuses[$cutterName]
@@ -327,17 +325,16 @@ function Show-CutterMovements($parentForm, $currentUser) {
                     $i++
                 }
             } else {
-                # If no cutters are assigned, show a message.
                 $noCutterLabel = New-Object System.Windows.Forms.Label
-                $noCutterLabel.Location = New-Object System.Drawing.Point(30, $currentY)
-                $noCutterLabel.Size = New-Object System.Drawing.Size(560, 25)
+                $noCutterLabel.Location = New-Object System.Drawing.Point(10, $currentY)
+                $noCutterLabel.Size = New-Object System.Drawing.Size(580, 25)
                 $noCutterLabel.Text = "No cutters assigned to this operation."
                 $noCutterLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Italic)
                 $noCutterLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
                 $mainPanel.Controls.Add($noCutterLabel)
                 $currentY += $noCutterLabel.Height
             }
-            $currentY += 20 # Add extra space between operation tables
+            $currentY += 20
         }
     }
 
@@ -345,17 +342,15 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $updateBtn.Add_Click({
         $selectedVessel = $vesselDropdownStatus.SelectedItem.ToString()
         $newStatus = $statusInput.Text.Trim()
-        if ($newStatus -eq "" -or $newStatus -eq "Enter new status...") {
+        if ([string]::IsNullOrWhiteSpace($newStatus) -or $newStatus -eq "Enter new status...") {
             [System.Windows.Forms.MessageBox]::Show("Please enter a status before updating.", "Missing Status")
             return
         }
         Save-CutterStatus $selectedVessel $newStatus $currentUser
         Log-CutterUpdate $currentUser $selectedVessel $newStatus
-        
         $timestampForDisplay = Get-Date -Format "MM/dd/yy HH:mm"
         $statusLabels[$selectedVessel].Text = $newStatus
         $updateInfoLabels[$selectedVessel].Text = "$timestampForDisplay`n$currentUser"
-        
         $statusInput.Text = "Enter new status..."
         $statusInput.ForeColor = [System.Drawing.Color]::Gray
         [System.Windows.Forms.MessageBox]::Show("Status for $selectedVessel updated successfully!", "Status Updated")
@@ -364,25 +359,20 @@ function Show-CutterMovements($parentForm, $currentUser) {
     $assignBtn.Add_Click({
         $selectedVessel = $vesselDropdownAssign.SelectedItem.ToString()
         $selectedOp = $operationDropdown.SelectedItem.ToString()
-        
         $assignments = Get-CutterOperations
         $assignments[$selectedVessel] = $selectedOp
         Save-CutterOperations $assignments
-        
         [System.Windows.Forms.MessageBox]::Show("$selectedVessel has been assigned to $selectedOp.", "Assignment Updated")
-        
-        # Rebuild the entire display to reflect the change
         &$rebuildDisplay
     })
     
     $cutterForm.Add_Load({
-        # Initial build of the display when the form opens
         &$rebuildDisplay
     })
 
-    # --- BACK BUTTON ---
+    # --- BACK BUTTON (MOVED TO RIGHT COLUMN) ---
     $backButton = New-Object System.Windows.Forms.Button
-    $backButton.Location = New-Object System.Drawing.Point(30, 710)
+    $backButton.Location = New-Object System.Drawing.Point(980, 730)
     $backButton.Size = New-Object System.Drawing.Size(80, 30)
     $backButton.Text = 'Back'
     $backButton.Font = New-Object System.Drawing.Font("Arial", 10)
