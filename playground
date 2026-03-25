@@ -152,9 +152,9 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
 }
 
 function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
-    # MODIFIED: Implements a dynamic, multi-row entry system.
+    # CORRECTED: This version fixes the "Cannot call method on a null-valued expression" error.
     $entryForm = New-Object System.Windows.Forms.Form; $entryForm.Text = "Taconite App - POC Hour Entry ($operation)"; $entryForm.StartPosition = 'CenterScreen'; $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $entryForm.Size = New-Object System.Drawing.Size(780, 500) # Taller to accommodate multiple rows
+    $entryForm.Size = New-Object System.Drawing.Size(780, 500)
 
     # --- STATIC TOP SECTION ---
     $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(780, 30); $titleLabel.Text = "POC HOUR ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
@@ -163,12 +163,17 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
     
     # --- DYNAMIC ROW PANEL ---
     $mainPanel = New-Object System.Windows.Forms.Panel; $mainPanel.Location = New-Object System.Drawing.Point(10, 100); $mainPanel.Size = New-Object System.Drawing.Size(740, 300); $mainPanel.AutoScroll = $true; $mainPanel.BorderStyle = 'FixedSingle'; $entryForm.Controls.Add($mainPanel)
-    $rowControls = @() # Array to store the controls of each row
+    $rowControls = [System.Collections.ArrayList]@() # Use a more robust list type
     $currentY = 10
     
-    # --- Function to add a new row ---
+    # --- Function to add a new row (now a proper function) ---
     $addRow = {
-        $rowPanel = New-Object System.Windows.Forms.Panel; $rowPanel.Location = New-Object System.Drawing.Point(10, $script:currentY); $rowPanel.Size = New-Object System.Drawing.Size(700, 40); $script:mainPanel.Controls.Add($rowPanel)
+        param(
+            [System.Windows.Forms.Panel]$panel,
+            [System.Collections.ArrayList]$controlsList,
+            [ref]$yPosition
+        )
+        $rowPanel = New-Object System.Windows.Forms.Panel; $rowPanel.Location = New-Object System.Drawing.Point(10, $yPosition.Value); $rowPanel.Size = New-Object System.Drawing.Size(700, 40); $panel.Controls.Add($rowPanel)
         
         $datePicker = New-Object System.Windows.Forms.DateTimePicker; $datePicker.Location = New-Object System.Drawing.Point(10, 5); $datePicker.Size = New-Object System.Drawing.Size(120, 25); $datePicker.Format = 'Short'; $rowPanel.Controls.Add($datePicker)
         $locationDropdown = New-Object System.Windows.Forms.ComboBox; $locationDropdown.Location = New-Object System.Drawing.Point(140, 5); $locationDropdown.Size = New-Object System.Drawing.Size(180, 25); $locationDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $locationDropdown.DropDownStyle = 'DropDown'; $locationDropdown.AutoCompleteMode = 'SuggestAppend'; $locationDropdown.AutoCompleteSource = 'ListItems'
@@ -177,8 +182,10 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
         $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox; $hourTypeDropdown.Location = New-Object System.Drawing.Point(330, 5); $hourTypeDropdown.Size = New-Object System.Drawing.Size(80, 25); $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $hourTypeDropdown.DropDownStyle = 'DropDownList'; $hourTypeDropdown.Items.AddRange(@("VA", "DA", "PI", "MC")); $hourTypeDropdown.SelectedIndex = 0; $rowPanel.Controls.Add($hourTypeDropdown)
         $hoursInput = New-Object System.Windows.Forms.TextBox; $hoursInput.Location = New-Object System.Drawing.Point(420, 5); $hoursInput.Size = New-Object System.Drawing.Size(60, 25); $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9); $rowPanel.Controls.Add($hoursInput)
         
-        $script:rowControls += [PSCustomObject]@{ Panel = $rowPanel; Date = $datePicker; Location = $locationDropdown; HourType = $hourTypeDropdown; Hours = $hoursInput }
-        $script:currentY += 45
+        # Add the controls object to the list that was passed in
+        $null = $controlsList.Add([PSCustomObject]@{ Panel = $rowPanel; Date = $datePicker; Location = $locationDropdown; HourType = $hourTypeDropdown; Hours = $hoursInput })
+        # Update the Y position using the reference
+        $yPosition.Value += 45
     }
 
     # --- BUTTONS AT THE BOTTOM ---
@@ -187,11 +194,15 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
     $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(630, 415); $submitButton.Size = New-Object System.Drawing.Size(120, 30); $submitButton.Text = 'Submit All'; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
 
     # --- EVENT HANDLERS ---
-    $addButton.Add_Click({ &$addRow })
+    # CORRECTED: Call the addRow function, passing the required variables as arguments.
+    $addButton.Add_Click({ & $addRow $mainPanel $rowControls ([ref]$currentY) })
+    
     $submitButton.Add_Click({
         if (!$vesselDropdown.SelectedItem) { [System.Windows.Forms.MessageBox]::Show("Please select a cutter.", "Cutter Not Selected"); return }
         $selectedCutter = $vesselDropdown.SelectedItem.ToString()
         $entriesSaved = 0
+        
+        # The $rowControls array is now reliably populated.
         foreach ($row in $rowControls) {
             $enteredHours = $row.Hours.Text.Trim()
             if (-not [string]::IsNullOrWhiteSpace($enteredHours)) {
@@ -204,14 +215,18 @@ function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
             }
         }
         [System.Windows.Forms.MessageBox]::Show("$entriesSaved entries saved successfully for $selectedCutter.", "Batch Entry Complete")
-        # Reset the form by removing all rows and adding one back
-        $script:mainPanel.Controls.Clear(); $script:rowControls = @(); $script:currentY = 10; &$addRow
+        
+        # Reset the form
+        $mainPanel.Controls.Clear(); $rowControls.Clear(); $currentY = 10
+        & $addRow $mainPanel $rowControls ([ref]$currentY)
     })
     
     # Add the first row when the form loads
-    &$addRow
+    & $addRow $mainPanel $rowControls ([ref]$currentY)
+    
     $entryForm.ShowDialog()
 }
+
 
 function Show-PocDataViewScreen($parentForm, $operation) {
     $viewDataForm = New-Object System.Windows.Forms.Form; $viewDataForm.Text = "POC Hours Summary ($operation)"; $viewDataForm.Size = New-Object System.Drawing.Size(640, 480); $viewDataForm.StartPosition = 'CenterScreen'; $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke
