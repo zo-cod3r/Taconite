@@ -10,7 +10,6 @@ $logFilePath = "$PSScriptRoot\taconite_log.txt"
 $accountsFilePath = "$PSScriptRoot\taconite_accounts.txt"
 $cutterLogPath = "$PSScriptRoot\cutter_movements_log.txt"
 $cutterStatusPath = "$PSScriptRoot\cutter_status.txt"
-$pocHoursPath = "$PSScriptRoot\poc_hours.txt"
 $operationsFilePath = "$PSScriptRoot\cutter_operations.txt" # File for operation assignments
 $pocHoursTaconitePath = "$PSScriptRoot\poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = "$PSScriptRoot\poc_hours_coalshovel.txt"
