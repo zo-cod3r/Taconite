@@ -39,37 +39,23 @@ function Log-OperationAssignment($username, $cutter, $operation) {
 }
 
 function Save-PocHourEntry($username, $eventDate, $operation, $cutter, $hourType, $hours, [string]$location = "") {
-    # MODIFIED: Unifies the save format to 7 columns for both operations.
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $eventDateString = $eventDate.ToString("yyyy-MM-dd")
-    
-    # UNIFIED 7-COLUMN FORMAT: TIMESTAMP|USER|EVENT_DATE|LOCATION|CUTTER|HOUR_TYPE|HOURS
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $eventDateString = $eventDate.ToString("yyyy-MM-dd")
     $logEntry = "$timestamp|$username|$eventDateString|$location|$cutter|$hourType|$hours"
-    
     $targetPath = if ($operation -eq "Operation TACONITE") { $pocHoursTaconitePath } else { $pocHoursCoalShovelPath }
     Add-Content -Path $targetPath -Value $logEntry
 }
 
 function Get-PocHourEntries($operation) {
-    # MODIFIED: Now consistently expects a 7-column format from both files.
     $entries = New-Object System.ComponentModel.BindingList[PSObject]
     $pathsToRead = @()
-
     if ($operation -eq "Operation TACONITE") { $pathsToRead += $pocHoursTaconitePath }
     elseif ($operation -eq "Operation COAL SHOVEL") { $pathsToRead += $pocHoursCoalShovelPath }
     elseif ($operation -eq "All Operations") { $pathsToRead += $pocHoursTaconitePath; $pathsToRead += $pocHoursCoalShovelPath }
-
     foreach ($path in $pathsToRead) {
         if (Test-Path $path) {
             Get-Content $path | ForEach-Object {
-                $parts = $_ -split '\|'
-                if ($parts.Length -eq 7) { # Always expect 7 parts now
-                    $entry = [PSCustomObject]@{
-                        Timestamp = $parts[0].Trim(); User = $parts[1].Trim(); EventDate = [datetime]$parts[2].Trim();
-                        Location  = $parts[3].Trim(); # Location is now always present
-                        Cutter    = $parts[4].Trim(); HourType  = $parts[5].Trim(); Hours = [double]$parts[6].Trim()
-                    }
-                    $entries.Add($entry)
+                $parts = $_ -split '\|'; if ($parts.Length -eq 7) {
+                    $entries.Add([PSCustomObject]@{ Timestamp = $parts[0].Trim(); User = $parts[1].Trim(); EventDate = [datetime]$parts[2].Trim(); Location = $parts[3].Trim(); Cutter = $parts[4].Trim(); HourType = $parts[5].Trim(); Hours = [double]$parts[6].Trim() })
                 }
             }
         }
@@ -167,45 +153,162 @@ function Show-PocSelectionScreen($parentForm, $currentUser) {
 }
 
 function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
-    # MODIFIED: Dynamically adds Location dropdown for BOTH operations.
+    # MODIFIED: Made form and Location dropdown wider to show all location names.
     $entryForm = New-Object System.Windows.Forms.Form; $entryForm.Text = "Taconite App - POC Hour Entry ($operation)"; $entryForm.StartPosition = 'CenterScreen'; $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $allCutters = (Get-CutterOperations).Keys | Sort-Object; $hourTypes = @("VA", "DA", "PI", "MC")
-    
-    # --- WIDER LAYOUT FOR BOTH OPERATIONS ---
-    $entryForm.Size = New-Object System.Drawing.Size(760, 320)
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(760, 30); $titleLabel.Text = "POC HOUR ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
-    $divider = New-Object System.Windows.Forms.Panel; $divider.Location = New-Object System.Drawing.Point(30, 60); $divider.Size = New-Object System.Drawing.Size(700, 2); $divider.BackColor = [System.Drawing.Color]::LightGray; $entryForm.Controls.Add($divider)
-    $labelCutter = New-Object System.Windows.Forms.Label; $labelCutter.Location = New-Object System.Drawing.Point(30, 80); $labelCutter.Size = New-Object System.Drawing.Size(120, 20); $labelCutter.Text = "Select Cutter:"; $labelCutter.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelCutter)
-    $vesselDropdown = New-Object System.Windows.Forms.ComboBox; $vesselDropdown.Location = New-Object System.Drawing.Point(30, 105); $vesselDropdown.Size = New-Object System.Drawing.Size(180, 25); $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $vesselDropdown.Items.AddRange($allCutters); $vesselDropdown.SelectedIndex = 0; $entryForm.Controls.Add($vesselDropdown)
-    $labelEventDate = New-Object System.Windows.Forms.Label; $labelEventDate.Location = New-Object System.Drawing.Point(230, 80); $labelEventDate.Size = New-Object System.Drawing.Size(150, 20); $labelEventDate.Text = "Date of Hours:"; $labelEventDate.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelEventDate)
-    $datePicker = New-Object System.Windows.Forms.DateTimePicker; $datePicker.Location = New-Object System.Drawing.Point(230, 105); $datePicker.Size = New-Object System.Drawing.Size(120, 25); $datePicker.Format = [System.Windows.Forms.DateTimePickerFormat]::Short; $entryForm.Controls.Add($datePicker)
-    
-    # --- LOCATION DROPDOWN (DYNAMIC CHOICES) ---
-    $labelLocation = New-Object System.Windows.Forms.Label; $labelLocation.Location = New-Object System.Drawing.Point(370, 80); $labelLocation.Size = New-Object System.Drawing.Size(120, 20); $labelLocation.Text = "Location:"; $labelLocation.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelLocation)
-    $locationDropdown = New-Object System.Windows.Forms.ComboBox; $locationDropdown.Location = New-Object System.Drawing.Point(370, 105); $locationDropdown.Size = New-Object System.Drawing.Size(180, 25); $locationDropdown.Font = New-Object System.Drawing.Font("Arial", 9)
-    $locationDropdown.DropDownStyle = 'DropDown'; $locationDropdown.AutoCompleteMode = 'SuggestAppend'; $locationDropdown.AutoCompleteSource = 'ListItems'
-    $locations = if ($operation -eq "Operation TACONITE") { @("Thunder Bay", "Straits of Mackinac", "Lake Huron") } else { @("Lake St. Claire", "St. Claire River", "Lake Erie") }
-    $locationDropdown.Items.AddRange($locations); $locationDropdown.SelectedIndex = 0; $entryForm.Controls.Add($locationDropdown)
-    
-    # --- Remaining Controls ---
-    $labelHourType = New-Object System.Windows.Forms.Label; $labelHourType.Location = New-Object System.Drawing.Point(570, 80); $labelHourType.Size = New-Object System.Drawing.Size(120, 20); $labelHourType.Text = "Hour Type:"; $labelHourType.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelHourType)
-    $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox; $hourTypeDropdown.Location = New-Object System.Drawing.Point(570, 105); $hourTypeDropdown.Size = New-Object System.Drawing.Size(80, 25); $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $hourTypeDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $hourTypeDropdown.Items.AddRange($hourTypes); $hourTypeDropdown.SelectedIndex = 0; $entryForm.Controls.Add($hourTypeDropdown)
-    $labelHours = New-Object System.Windows.Forms.Label; $labelHours.Location = New-Object System.Drawing.Point(670, 80); $labelHours.Size = New-Object System.Drawing.Size(90, 20); $labelHours.Text = "Hours:"; $labelHours.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelHours)
-    $hoursInput = New-Object System.Windows.Forms.TextBox; $hoursInput.Location = New-Object System.Drawing.Point(670, 105); $hoursInput.Size = New-Object System.Drawing.Size(60, 25); $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9); $entryForm.Controls.Add($hoursInput)
-    $bottomDivider = New-Object System.Windows.Forms.Panel; $bottomDivider.Location = New-Object System.Drawing.Point(30, 190); $bottomDivider.Size = New-Object System.Drawing.Size(700, 2); $bottomDivider.BackColor = [System.Drawing.Color]::LightGray; $entryForm.Controls.Add($bottomDivider)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30, 210); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $entryForm.CancelButton = $backButton; $entryForm.Controls.Add($backButton)
-    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(630, 210); $submitButton.Size = New-Object System.Drawing.Size(100, 30); $submitButton.Text = 'Submit'; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
+    # Increased form width to accommodate wider controls
+    $entryForm.Size = New-Object System.Drawing.Size(920, 500)
 
+    # --- STATIC TOP SECTION ---
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(920, 30); $titleLabel.Text = "POC HOUR ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
+    $labelCutter = New-Object System.Windows.Forms.Label; $labelCutter.Location = New-Object System.Drawing.Point(30, 60); $labelCutter.Size = New-Object System.Drawing.Size(120, 20); $labelCutter.Text = "Select Cutter:"; $labelCutter.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelCutter)
+    $vesselDropdown = New-Object System.Windows.Forms.ComboBox; $vesselDropdown.Location = New-Object System.Drawing.Point(150, 58); $vesselDropdown.Size = New-Object System.Drawing.Size(180, 25); $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $vesselDropdown.Items.AddRange(((Get-CutterOperations).Keys | Sort-Object)); $vesselDropdown.SelectedIndex = 0; $entryForm.Controls.Add($vesselDropdown)
+    
+    # --- STATIC HEADER FOR THE ROWS ---
+    $headerPanel = New-Object System.Windows.Forms.Panel; $headerPanel.Location = New-Object System.Drawing.Point(10, 100); $headerPanel.Size = New-Object System.Drawing.Size(880, 30); $entryForm.Controls.Add($headerPanel)
+    $labelHeaderDate = New-Object System.Windows.Forms.Label; $labelHeaderDate.Text = "Hour Date"; $labelHeaderDate.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderDate.Location = New-Object System.Drawing.Point(20, 5); $labelHeaderDate.Size = New-Object System.Drawing.Size(120, 20); $headerPanel.Controls.Add($labelHeaderDate)
+    $labelHeaderLocation = New-Object System.Windows.Forms.Label; $labelHeaderLocation.Text = "Location"; $labelHeaderLocation.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderLocation.Location = New-Object System.Drawing.Point(170, 5); $labelHeaderLocation.Size = New-Object System.Drawing.Size(280, 20); $headerPanel.Controls.Add($labelHeaderLocation)
+    $labelHeaderHourType = New-Object System.Windows.Forms.Label; $labelHeaderHourType.Text = "Hour Type"; $labelHeaderHourType.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHourType.Location = New-Object System.Drawing.Point(460, 5); $labelHeaderHourType.Size = New-Object System.Drawing.Size(80, 20); $headerPanel.Controls.Add($labelHeaderHourType)
+    $labelHeaderHours = New-Object System.Windows.Forms.Label; $labelHeaderHours.Text = "Hours"; $labelHeaderHours.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHours.Location = New-Object System.Drawing.Point(550, 5); $labelHeaderHours.Size = New-Object System.Drawing.Size(60, 20); $headerPanel.Controls.Add($labelHeaderHours)
+
+    # --- DYNAMIC ROW PANEL ---
+    $mainPanel = New-Object System.Windows.Forms.Panel; $mainPanel.Location = New-Object System.Drawing.Point(10, 130); $mainPanel.Size = New-Object System.Drawing.Size(880, 270); $mainPanel.AutoScroll = $true; $mainPanel.BorderStyle = 'FixedSingle'; $entryForm.Controls.Add($mainPanel)
+    $rowControls = [System.Collections.ArrayList]@()
+    $currentY = 10
+    
+    # --- Function to add a new row ---
+    $addRow = {
+        param([System.Windows.Forms.Panel]$panel, [System.Collections.ArrayList]$controlsList, [ref]$yPosition)
+        $rowPanel = New-Object System.Windows.Forms.Panel; $rowPanel.Location = New-Object System.Drawing.Point(10, $yPosition.Value); $rowPanel.Size = New-Object System.Drawing.Size(850, 40); $panel.Controls.Add($rowPanel)
+        
+        $datePicker = New-Object System.Windows.Forms.DateTimePicker; $datePicker.Location = New-Object System.Drawing.Point(10, 5); $datePicker.Size = New-Object System.Drawing.Size(120, 25); $datePicker.Format = 'Short'; $rowPanel.Controls.Add($datePicker)
+        
+        # CORRECTED: Made the location dropdown significantly wider
+        $locationDropdown = New-Object System.Windows.Forms.ComboBox; $locationDropdown.Location = New-Object System.Drawing.Point(160, 5); $locationDropdown.Size = New-Object System.Drawing.Size(280, 25); $locationDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $locationDropdown.DropDownStyle = 'DropDown'; $locationDropdown.AutoCompleteMode = 'SuggestAppend'; $locationDropdown.AutoCompleteSource = 'ListItems'
+        $locations = if ($operation -eq "Operation TACONITE") { 
+            @("Thunder Bay, MI", "Straits of Mackinac", "Lake Huron")
+        } else { 
+            @("Lake St. Claire", "St. Claire River", "Lake Erie") 
+        }
+        $locationDropdown.Items.AddRange($locations); $locationDropdown.SelectedIndex = 0; $rowPanel.Controls.Add($locationDropdown)
+        
+        # Repositioned subsequent controls
+        $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox; $hourTypeDropdown.Location = New-Object System.Drawing.Point(450, 5); $hourTypeDropdown.Size = New-Object System.Drawing.Size(80, 25); $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $hourTypeDropdown.DropDownStyle = 'DropDownList'; $hourTypeDropdown.Items.AddRange(@("VA", "DA", "PI", "MC")); $hourTypeDropdown.SelectedIndex = 0; $rowPanel.Controls.Add($hourTypeDropdown)
+        $hoursInput = New-Object System.Windows.Forms.TextBox; $hoursInput.Location = New-Object System.Drawing.Point(540, 5); $hoursInput.Size = New-Object System.Drawing.Size(60, 25); $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9); $rowPanel.Controls.Add($hoursInput)
+        
+        $null = $controlsList.Add([PSCustomObject]@{ Panel = $rowPanel; Date = $datePicker; Location = $locationDropdown; HourType = $hourTypeDropdown; Hours = $hoursInput })
+        $yPosition.Value += 45
+    }
+
+    # --- BUTTONS AT THE BOTTOM ---
+    $addButton = New-Object System.Windows.Forms.Button; $addButton.Location = New-Object System.Drawing.Point(10, 415); $addButton.Size = New-Object System.Drawing.Size(30, 30); $addButton.Text = '+'; $addButton.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold); $addButton.BackColor = [System.Drawing.Color]::LightGreen; $entryForm.Controls.Add($addButton)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(670, 415); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $entryForm.CancelButton = $backButton; $entryForm.Controls.Add($backButton)
+    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(760, 415); $submitButton.Size = New-Object System.Drawing.Size(120, 30); $submitButton.Text = 'Submit All'; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
+
+    # --- EVENT HANDLERS ---
+    $addButton.Add_Click({ & $addRow $mainPanel $rowControls ([ref]$currentY) })
+    
     $submitButton.Add_Click({
-        if (!$vesselDropdown.SelectedItem) { [System.Windows.Forms.MessageBox]::Show("There are no cutters available.", "No Cutters"); return }
-        $selectedCutter = $vesselDropdown.SelectedItem.ToString(); $selectedHourType = $hourTypeDropdown.SelectedItem.ToString(); $enteredHours = $hoursInput.Text.Trim(); $selectedEventDate = $datePicker.Value
-        $selectedLocation = $locationDropdown.Text
-        if ([string]::IsNullOrWhiteSpace($enteredHours)) { [System.Windows.Forms.MessageBox]::Show("Please enter hours.", "Input Missing"); return }
-        if (-not ($enteredHours -match '^\d+(\.\d+)?$')) { [System.Windows.Forms.MessageBox]::Show("Please enter a valid number.", "Invalid Input"); return }
-        Save-PocHourEntry $currentUser $selectedEventDate $operation $selectedCutter $selectedHourType $enteredHours $selectedLocation
-        [System.Windows.Forms.MessageBox]::Show("Successfully submitted $enteredHours hours for $selectedCutter against $operation.", "Entry Saved"); $hoursInput.Text = ""; $vesselDropdown.Focus()
-    }); $entryForm.ShowDialog()
+        if (!$vesselDropdown.SelectedItem) { [System.Windows.Forms.MessageBox]::Show("Please select a cutter.", "Cutter Not Selected"); return }
+        $selectedCutter = $vesselDropdown.SelectedItem.ToString()
+        $entriesSaved = 0
+        
+        foreach ($row in $rowControls) {
+            $enteredHours = $row.Hours.Text.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($enteredHours)) {
+                if ($enteredHours -match '^\d+(\.\d+)?$') {
+                    Save-PocHourEntry $currentUser $row.Date.Value $operation $selectedCutter $row.HourType.SelectedItem $enteredHours $row.Location.Text
+                    $entriesSaved++
+                } else {
+                    [System.Windows.Forms.MessageBox]::Show("An entry with invalid hours ('$enteredHours') was skipped.", "Invalid Entry Skipped")
+                }
+            }
+        }
+        [System.Windows.Forms.MessageBox]::Show("$entriesSaved entries saved successfully for $selectedCutter.", "Batch Entry Complete")
+        
+        $mainPanel.Controls.Clear(); $rowControls.Clear(); $currentY = 10
+        & $addRow $mainPanel $rowControls ([ref]$currentY)
+    })
+    
+    & $addRow $mainPanel $rowControls ([ref]$currentY)
+    $entryForm.ShowDialog()
 }
+
+function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
+    # MODIFIED: Added a static header panel for the dynamic entry rows.
+    $entryForm = New-Object System.Windows.Forms.Form; $entryForm.Text = "Taconite App - POC Hour Entry ($operation)"; $entryForm.StartPosition = 'CenterScreen'; $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    $entryForm.Size = New-Object System.Drawing.Size(780, 500)
+
+    # --- STATIC TOP SECTION ---
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(780, 30); $titleLabel.Text = "POC HOUR ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
+    $labelCutter = New-Object System.Windows.Forms.Label; $labelCutter.Location = New-Object System.Drawing.Point(30, 60); $labelCutter.Size = New-Object System.Drawing.Size(120, 20); $labelCutter.Text = "Select Cutter:"; $labelCutter.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelCutter)
+    $vesselDropdown = New-Object System.Windows.Forms.ComboBox; $vesselDropdown.Location = New-Object System.Drawing.Point(150, 58); $vesselDropdown.Size = New-Object System.Drawing.Size(180, 25); $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $vesselDropdown.Items.AddRange(((Get-CutterOperations).Keys | Sort-Object)); $vesselDropdown.SelectedIndex = 0; $entryForm.Controls.Add($vesselDropdown)
+    
+    # --- ADDED: STATIC HEADER FOR THE ROWS ---
+    $headerPanel = New-Object System.Windows.Forms.Panel; $headerPanel.Location = New-Object System.Drawing.Point(10, 100); $headerPanel.Size = New-Object System.Drawing.Size(740, 30); $entryForm.Controls.Add($headerPanel)
+    $labelHeaderDate = New-Object System.Windows.Forms.Label; $labelHeaderDate.Text = "Hour Date"; $labelHeaderDate.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderDate.Location = New-Object System.Drawing.Point(20, 5); $labelHeaderDate.Size = New-Object System.Drawing.Size(120, 20); $headerPanel.Controls.Add($labelHeaderDate)
+    $labelHeaderLocation = New-Object System.Windows.Forms.Label; $labelHeaderLocation.Text = "Location"; $labelHeaderLocation.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderLocation.Location = New-Object System.Drawing.Point(150, 5); $labelHeaderLocation.Size = New-Object System.Drawing.Size(180, 20); $headerPanel.Controls.Add($labelHeaderLocation)
+    $labelHeaderHourType = New-Object System.Windows.Forms.Label; $labelHeaderHourType.Text = "Hour Type"; $labelHeaderHourType.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHourType.Location = New-Object System.Drawing.Point(340, 5); $labelHeaderHourType.Size = New-Object System.Drawing.Size(80, 20); $headerPanel.Controls.Add($labelHeaderHourType)
+    $labelHeaderHours = New-Object System.Windows.Forms.Label; $labelHeaderHours.Text = "Hours"; $labelHeaderHours.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHours.Location = New-Object System.Drawing.Point(430, 5); $labelHeaderHours.Size = New-Object System.Drawing.Size(60, 20); $headerPanel.Controls.Add($labelHeaderHours)
+
+    # --- DYNAMIC ROW PANEL (Positioned below the new header) ---
+    $mainPanel = New-Object System.Windows.Forms.Panel; $mainPanel.Location = New-Object System.Drawing.Point(10, 130); $mainPanel.Size = New-Object System.Drawing.Size(740, 270); $mainPanel.AutoScroll = $true; $mainPanel.BorderStyle = 'FixedSingle'; $entryForm.Controls.Add($mainPanel)
+    $rowControls = [System.Collections.ArrayList]@()
+    $currentY = 10
+    
+    # --- Function to add a new row ---
+    $addRow = {
+        param([System.Windows.Forms.Panel]$panel, [System.Collections.ArrayList]$controlsList, [ref]$yPosition)
+        $rowPanel = New-Object System.Windows.Forms.Panel; $rowPanel.Location = New-Object System.Drawing.Point(10, $yPosition.Value); $rowPanel.Size = New-Object System.Drawing.Size(700, 40); $panel.Controls.Add($rowPanel)
+        
+        $datePicker = New-Object System.Windows.Forms.DateTimePicker; $datePicker.Location = New-Object System.Drawing.Point(10, 5); $datePicker.Size = New-Object System.Drawing.Size(120, 25); $datePicker.Format = 'Short'; $rowPanel.Controls.Add($datePicker)
+        $locationDropdown = New-Object System.Windows.Forms.ComboBox; $locationDropdown.Location = New-Object System.Drawing.Point(140, 5); $locationDropdown.Size = New-Object System.Drawing.Size(180, 25); $locationDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $locationDropdown.DropDownStyle = 'DropDown'; $locationDropdown.AutoCompleteMode = 'SuggestAppend'; $locationDropdown.AutoCompleteSource = 'ListItems'
+        $locations = if ($operation -eq "Operation TACONITE") { @("Thunder Bay", "Straits of Mackinac", "Lake Huron") } else { @("Lake St. Claire", "St. Claire River", "Lake Erie") }
+        $locationDropdown.Items.AddRange($locations); $locationDropdown.SelectedIndex = 0; $rowPanel.Controls.Add($locationDropdown)
+        $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox; $hourTypeDropdown.Location = New-Object System.Drawing.Point(330, 5); $hourTypeDropdown.Size = New-Object System.Drawing.Size(80, 25); $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $hourTypeDropdown.DropDownStyle = 'DropDownList'; $hourTypeDropdown.Items.AddRange(@("VA", "DA", "PI", "MC")); $hourTypeDropdown.SelectedIndex = 0; $rowPanel.Controls.Add($hourTypeDropdown)
+        $hoursInput = New-Object System.Windows.Forms.TextBox; $hoursInput.Location = New-Object System.Drawing.Point(420, 5); $hoursInput.Size = New-Object System.Drawing.Size(60, 25); $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9); $rowPanel.Controls.Add($hoursInput)
+        
+        $null = $controlsList.Add([PSCustomObject]@{ Panel = $rowPanel; Date = $datePicker; Location = $locationDropdown; HourType = $hourTypeDropdown; Hours = $hoursInput })
+        $yPosition.Value += 45
+    }
+
+    # --- BUTTONS AT THE BOTTOM ---
+    $addButton = New-Object System.Windows.Forms.Button; $addButton.Location = New-Object System.Drawing.Point(10, 415); $addButton.Size = New-Object System.Drawing.Size(30, 30); $addButton.Text = '+'; $addButton.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold); $addButton.BackColor = [System.Drawing.Color]::LightGreen; $entryForm.Controls.Add($addButton)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(540, 415); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $entryForm.CancelButton = $backButton; $entryForm.Controls.Add($backButton)
+    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(630, 415); $submitButton.Size = New-Object System.Drawing.Size(120, 30); $submitButton.Text = 'Submit All'; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
+
+    # --- EVENT HANDLERS ---
+    $addButton.Add_Click({ & $addRow $mainPanel $rowControls ([ref]$currentY) })
+    
+    $submitButton.Add_Click({
+        if (!$vesselDropdown.SelectedItem) { [System.Windows.Forms.MessageBox]::Show("Please select a cutter.", "Cutter Not Selected"); return }
+        $selectedCutter = $vesselDropdown.SelectedItem.ToString()
+        $entriesSaved = 0
+        
+        foreach ($row in $rowControls) {
+            $enteredHours = $row.Hours.Text.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($enteredHours)) {
+                if ($enteredHours -match '^\d+(\.\d+)?$') {
+                    Save-PocHourEntry $currentUser $row.Date.Value $operation $selectedCutter $row.HourType.SelectedItem $enteredHours $row.Location.Text
+                    $entriesSaved++
+                } else {
+                    [System.Windows.Forms.MessageBox]::Show("An entry with invalid hours ('$enteredHours') was skipped.", "Invalid Entry Skipped")
+                }
+            }
+        }
+        [System.Windows.Forms.MessageBox]::Show("$entriesSaved entries saved successfully for $selectedCutter.", "Batch Entry Complete")
+        
+        # Reset the form
+        $mainPanel.Controls.Clear(); $rowControls.Clear(); $currentY = 10
+        & $addRow $mainPanel $rowControls ([ref]$currentY)
+    })
+    
+    # Add the first row when the form loads
+    & $addRow $mainPanel $rowControls ([ref]$currentY)
+    
+    $entryForm.ShowDialog()
+}
+
+
 
 function Show-PocDataViewScreen($parentForm, $operation) {
     $viewDataForm = New-Object System.Windows.Forms.Form; $viewDataForm.Text = "POC Hours Summary ($operation)"; $viewDataForm.Size = New-Object System.Drawing.Size(640, 480); $viewDataForm.StartPosition = 'CenterScreen'; $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke
@@ -213,7 +316,7 @@ function Show-PocDataViewScreen($parentForm, $operation) {
     $yearComboBox = New-Object System.Windows.Forms.ComboBox; $yearComboBox.Location = New-Object System.Drawing.Point(130, 12); $yearComboBox.Size = New-Object System.Drawing.Size(100, 25); $yearComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $viewDataForm.Controls.Add($yearComboBox)
     $dataGridView = New-Object System.Windows.Forms.DataGridView; $dataGridView.Location = New-Object System.Drawing.Point(20, 50); $dataGridView.Size = New-Object System.Drawing.Size(580, 320); $dataGridView.AllowUserToAddRows = $false; $dataGridView.ReadOnly = $true; $dataGridView.AutoSizeColumnsMode = 'AllCells'; $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10); $dataGridView.RowHeadersVisible = $false; $dataGridView.Columns.Add("Cutter", "Cutter"); $dataGridView.Columns.Add("VA", "VA"); $dataGridView.Columns.Add("DA", "DA"); $dataGridView.Columns.Add("PI", "PI"); $dataGridView.Columns.Add("MC", "MC"); $dataGridView.Columns.Add("Total", "Cutter Total"); $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($dataGridView)
     $updateTable = {
-        param($filteredYear); $dataGridView.Rows.Clear(); $allAssignments = Get-CutterOperations; $allCutters = $allAssignments.Keys | Sort-Object
+        param($filteredYear); $dataGridView.Rows.Clear(); $allCutters = (Get-CutterOperations).Keys | Sort-Object
         $operationEntries = Get-PocHourEntries -operation $operation
         $filteredEntries = if ($filteredYear -and $filteredYear -ne "All Years") { $operationEntries | Where-Object { $_.EventDate.Year -eq $filteredYear } } else { $operationEntries }
         $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum }
