@@ -1,4 +1,6 @@
-# TACONITE APP - FINAL VERSION
+# TACONITE APP
+# Log in screen, Vessel inChop, Hours tracking
+# Still developing VMR input and tracking
 
 # 1. Load Required .NET Assemblies
 Add-Type -AssemblyName System.Windows.Forms
@@ -15,7 +17,7 @@ $pocHoursTaconitePath = "$PSScriptRoot\poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = "$PSScriptRoot\poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = "$PSScriptRoot\CutterOperationUpdate_log.txt"
 
-# 3. Helper Functions (Data Management)
+# 3. Foundational Functions 
 
 function Get-Accounts {
     $accounts = @{}; if (Test-Path $accountsFilePath) { Get-Content $accountsFilePath | ForEach-Object { $parts = $_ -split "\|"; if ($parts.Length -eq 2) { $accounts[$parts[0].Trim()] = $parts[1].Trim() } } }; return $accounts
@@ -83,6 +85,7 @@ function Save-CutterOperations($assignments) {
 
 # 4. GUI Screen Functions
 
+#lots of buttons
 function Show-CutterMovements($parentForm, $currentUser) {
     $cutterForm = New-Object System.Windows.Forms.Form; $cutterForm.Text = 'Taconite App - Cutter Movements'; $cutterForm.Size = New-Object System.Drawing.Size(1100, 820); $cutterForm.StartPosition = 'CenterScreen'; $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
     $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY"); $operations = @("Operation TACONITE", "Operation COAL SHOVEL"); $statusLabels = @{}; $updateInfoLabels = @{}
@@ -210,7 +213,7 @@ function Show-VmrUploadScreen($parentForm) {
     # --- TITLE ---
     $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(500, 30); $titleLabel.Text = "UPLOAD VMR FORM"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $uploadForm.Controls.Add($titleLabel)
 
-    # --- FILE SELECTION CONTROLS ---
+    # --- FILE SELECTION ---
     $labelFile = New-Object System.Windows.Forms.Label; $labelFile.Location = New-Object System.Drawing.Point(30, 80); $labelFile.Size = New-Object System.Drawing.Size(100, 20); $labelFile.Text = "File Path:"; $labelFile.Font = New-Object System.Drawing.Font("Arial", 10); $uploadForm.Controls.Add($labelFile)
     $filePathTextBox = New-Object System.Windows.Forms.TextBox; $filePathTextBox.Location = New-Object System.Drawing.Point(30, 105); $filePathTextBox.Size = New-Object System.Drawing.Size(340, 25); $filePathTextBox.Font = New-Object System.Drawing.Font("Arial", 9); $filePathTextBox.ReadOnly = $true; $uploadForm.Controls.Add($filePathTextBox)
     $browseButton = New-Object System.Windows.Forms.Button; $browseButton.Location = New-Object System.Drawing.Point(380, 103); $browseButton.Size = New-Object System.Drawing.Size(80, 28); $browseButton.Text = "Browse..."; $browseButton.Font = New-Object System.Drawing.Font("Arial", 8); $uploadForm.Controls.Add($browseButton)
@@ -241,7 +244,7 @@ function Show-VmrUploadScreen($parentForm) {
     $uploadForm.ShowDialog()
 }
 
-
+#lots of buttons
 function Show-PocSelectionScreen($parentForm, $currentUser) {
     $selectionForm = New-Object System.Windows.Forms.Form; $selectionForm.Text = 'Taconite App - Cutter POCs'; $selectionForm.Size = New-Object System.Drawing.Size(500, 380); $selectionForm.StartPosition = 'CenterScreen'; $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
     $taconiteHeader = New-Object System.Windows.Forms.Label; $taconiteHeader.Location = New-Object System.Drawing.Point(0, 20); $taconiteHeader.Size = New-Object System.Drawing.Size(250, 30); $taconiteHeader.Text = "TACONITE"; $taconiteHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $taconiteHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $selectionForm.Controls.Add($taconiteHeader)
@@ -373,5 +376,4 @@ $vmrButton.Add_Click({ Show-VmrCenter $homeForm $username }); $cutterButton.Add_
 }
 
 # 5. Start the Application
-
 Show-LoginForm
