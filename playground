@@ -1,13 +1,13 @@
 # TACONITE APP
-# Log in screen, Vessel inChop, Hours tracking, VMR Data Entry and Tracking
-#bad version, stopped because brain fried. Go back to taconite app. 
+# Log in screen, Vessel inChop, Hours tracking
+# Still developing VMR input and tracking
 
 # 1. Load Required .NET Assemblies
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.ComponentModel
 
-# 2. Define Global File Paths & Create Directories
+# 2. Define Global File Paths (CORRECTED AND ROBUST METHOD)
 $scriptPath = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Path $MyInvocation.MyCommand.Definition -Parent }
 $signinLogPath = Join-Path $scriptPath "signin_log.txt"
 $accountsFilePath = Join-Path $scriptPath "accounts.txt"
@@ -17,7 +17,14 @@ $operationsFilePath = Join-Path $scriptPath "cutter_operations.txt"
 $pocHoursTaconitePath = Join-Path $scriptPath "poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = Join-Path $scriptPath "poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = Join-Path $scriptPath "CutterOperationUpdate_log.txt"
-$vmrRequestsPath = Join-Path $scriptPath "vmr_requests.txt"
+# ADDED: New path for the VMR uploads folder
+$vmrUploadsPath = Join-Path $scriptPath "VMRs Uploaded"
+
+# ADDED: Ensure the VMR upload directory exists
+if (-not (Test-Path $vmrUploadsPath)) {
+    New-Item -ItemType Directory -Path $vmrUploadsPath | Out-Null
+}
+
 
 # 3. Foundational Functions 
 function Get-Accounts {
@@ -30,39 +37,6 @@ function Save-Account($username, $password) {
 
 function Log-Attempt($username, $password, $status) {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] Username: $username | Password: $password | Status: $status"; Add-Content -Path $signinLogPath -Value $logEntry
-}
-
-function Save-VmrRequest {
-    param(
-        [string]$VesselName,
-        [string]$Operation,
-        [string]$SubmissionDate,
-        [string]$Area,
-        [string]$RequestedDateTime,
-        [string]$IcebreakerRequested
-    )
-    $logEntry = "$SubmissionDate|$VesselName|$Operation|$Area|$RequestedDateTime|$IcebreakerRequested"
-    Add-Content -Path $vmrRequestsPath -Value $logEntry
-}
-
-function Get-VmrRequests {
-    $requests = New-Object System.ComponentModel.BindingList[PSObject]
-    if (Test-Path $vmrRequestsPath) {
-        Get-Content $vmrRequestsPath | ForEach-Object {
-            $parts = $_ -split '\|'
-            if ($parts.Length -eq 6) {
-                $requests.Add([PSCustomObject]@{
-                    'Form Submitted' = $parts[0].Trim()
-                    'Vessel Name' = $parts[1].Trim()
-                    'Operation' = $parts[2].Trim()
-                    'Area/Origin' = $parts[3].Trim()
-                    'Time/Date Requested' = $parts[4].Trim()
-                    'Icebreaker Assistance' = $parts[5].Trim()
-                })
-            }
-        }
-    }
-    return $requests
 }
 
 function Log-CutterUpdate($username, $vessel, $newStatus) {
@@ -172,115 +146,60 @@ function Show-CutterMovements($parentForm, $currentUser) {
 }
 
 function Show-VmrCenter($parentForm, $currentUser) {
-    $vmrForm = New-Object System.Windows.Forms.Form; $vmrForm.Text = 'VMR Center'; $vmrForm.Size = New-Object System.Drawing.Size(340, 420); $vmrForm.StartPosition = 'CenterScreen'; $vmrForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    $vmrForm = New-Object System.Windows.Forms.Form
+    $vmrForm.Text = 'VMR Center'
+    $vmrForm.Size = New-Object System.Drawing.Size(340, 420)
+    $vmrForm.StartPosition = 'CenterScreen'
+    $vmrForm.BackColor = [System.Drawing.Color]::WhiteSmoke
     $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(340, 30); $titleLabel.Text = "VMR CENTER"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
     $divider1 = New-Object System.Windows.Forms.Panel; $divider1.Location = New-Object System.Drawing.Point(40, 60); $divider1.Size = New-Object System.Drawing.Size(260, 2); $divider1.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider1)
     
-    $entryButton = New-Object System.Windows.Forms.Button; $entryButton.Location = New-Object System.Drawing.Point(70, 90); $entryButton.Size = New-Object System.Drawing.Size(200, 50); $entryButton.Text = "Enter VMR Data"; $entryButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $entryButton.BackColor = [System.Drawing.Color]::SeaGreen; $entryButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($entryButton)
+    $uploadVmrButton = New-Object System.Windows.Forms.Button; $uploadVmrButton.Location = New-Object System.Drawing.Point(70, 90); $uploadVmrButton.Size = New-Object System.Drawing.Size(200, 50); $uploadVmrButton.Text = "Upload VMRs"; $uploadVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $uploadVmrButton.BackColor = [System.Drawing.Color]::SeaGreen; $uploadVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($uploadVmrButton)
     $vesselRequestsButton = New-Object System.Windows.Forms.Button; $vesselRequestsButton.Location = New-Object System.Drawing.Point(40, 170); $vesselRequestsButton.Size = New-Object System.Drawing.Size(260, 120); $vesselRequestsButton.Text = "Vessel Requests"; $vesselRequestsButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $vesselRequestsButton.BackColor = [System.Drawing.Color]::SteelBlue; $vesselRequestsButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($vesselRequestsButton)
-
+    
     $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40, 320); $divider2.Size = New-Object System.Drawing.Size(260, 2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider2)
     $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(125, 340); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
     
-    $entryButton.Add_Click({ Show-VmrDataEntryForm $vmrForm })
+    $uploadVmrButton.Add_Click({ Show-VmrUploadScreen $vmrForm })
     $vesselRequestsButton.Add_Click({ Show-VmrRequestsScreen $vmrForm })
 
     $vmrForm.ShowDialog()
 }
 
-function Show-VmrDataEntryForm($parentForm) {
-    $entryForm = New-Object System.Windows.Forms.Form
-    $entryForm.Text = 'VMR Data Entry'
-    $entryForm.Size = New-Object System.Drawing.Size(520, 460)
-    $entryForm.StartPosition = 'CenterScreen'
-    $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(520, 30); $titleLabel.Text = "VMR DATA ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
-
-    $labelVessel = New-Object System.Windows.Forms.Label; $labelVessel.Text = "Vessel Name:"; $labelVessel.Location = New-Object System.Drawing.Point(30, 70); $labelVessel.Size = New-Object System.Drawing.Size(150, 20); $entryForm.Controls.Add($labelVessel)
-    $vesselNameInput = New-Object System.Windows.Forms.TextBox; $vesselNameInput.Location = New-Object System.Drawing.Point(190, 70); $vesselNameInput.Size = New-Object System.Drawing.Size(280, 25); $entryForm.Controls.Add($vesselNameInput)
+function Show-VmrUploadScreen($parentForm) {
+    $uploadForm = New-Object System.Windows.Forms.Form
+    $uploadForm.Text = 'Upload VMR Form'
+    $uploadForm.Size = New-Object System.Drawing.Size(500, 250)
+    $uploadForm.StartPosition = 'CenterScreen'
+    $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(500, 30); $titleLabel.Text = "UPLOAD VMR FORM"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $uploadForm.Controls.Add($titleLabel)
+    $labelFile = New-Object System.Windows.Forms.Label; $labelFile.Location = New-Object System.Drawing.Point(30, 80); $labelFile.Size = New-Object System.Drawing.Size(100, 20); $labelFile.Text = "File Path:"; $labelFile.Font = New-Object System.Drawing.Font("Arial", 10); $uploadForm.Controls.Add($labelFile)
+    $filePathTextBox = New-Object System.Windows.Forms.TextBox; $filePathTextBox.Location = New-Object System.Drawing.Point(30, 105); $filePathTextBox.Size = New-Object System.Drawing.Size(340, 25); $filePathTextBox.Font = New-Object System.Drawing.Font("Arial", 9); $filePathTextBox.ReadOnly = $true; $uploadForm.Controls.Add($filePathTextBox)
+    $browseButton = New-Object System.Windows.Forms.Button; $browseButton.Location = New-Object System.Drawing.Point(380, 103); $browseButton.Size = New-Object System.Drawing.Size(80, 28); $browseButton.Text = "Browse..."; $browseButton.Font = New-Object System.Drawing.Font("Arial", 8); $uploadForm.Controls.Add($browseButton)
+    $uploadButton = New-Object System.Windows.Forms.Button; $uploadButton.Location = New-Object System.Drawing.Point(360, 160); $uploadButton.Size = New-Object System.Drawing.Size(100, 35); $uploadButton.Text = "Upload"; $uploadButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $uploadButton.BackColor = [System.Drawing.Color]::SeaGreen; $uploadButton.ForeColor = [System.Drawing.Color]::White; $uploadForm.Controls.Add($uploadButton)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30, 160); $backButton.Size = New-Object System.Drawing.Size(100, 35); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $uploadForm.CancelButton = $backButton; $uploadForm.Controls.Add($backButton)
     
-    $labelSubmissionDate = New-Object System.Windows.Forms.Label; $labelSubmissionDate.Text = "Form Submission Date:"; $labelSubmissionDate.Location = New-Object System.Drawing.Point(30, 105); $entryForm.Controls.Add($labelSubmissionDate)
-    $submissionDatePicker = New-Object System.Windows.Forms.DateTimePicker; $submissionDatePicker.Location = New-Object System.Drawing.Point(190, 105); $submissionDatePicker.Format = 'Short'; $entryForm.Controls.Add($submissionDatePicker)
-
-    $labelOperation = New-Object System.Windows.Forms.Label; $labelOperation.Text = "Operation:"; $labelOperation.Location = New-Object System.Drawing.Point(30, 140); $entryForm.Controls.Add($labelOperation)
-    $operationDropdown = New-Object System.Windows.Forms.ComboBox; $operationDropdown.Location = New-Object System.Drawing.Point(190, 140); $operationDropdown.Size = New-Object System.Drawing.Size(280, 25); $operationDropdown.Items.AddRange(@("Operation TACONITE", "Operation COAL SHOVEL")); $operationDropdown.DropDownStyle = 'DropDownList'; $operationDropdown.SelectedIndex = 0; $entryForm.Controls.Add($operationDropdown)
-
-    $dynamicPanel = New-Object System.Windows.Forms.Panel; $dynamicPanel.Location = New-Object System.Drawing.Point(20, 175); $dynamicPanel.Size = New-Object System.Drawing.Size(480, 150); $entryForm.Controls.Add($dynamicPanel)
-
-    $taconitePanel = New-Object System.Windows.Forms.Panel; $taconitePanel.Dock = 'Fill'; $taconitePanel.Visible = $true
-    $labelArea = New-Object System.Windows.Forms.Label; $labelArea.Text = "Area:"; $labelArea.Location = New-Object System.Drawing.Point(10, 15); $taconitePanel.Controls.Add($labelArea)
-    $areaInput = New-Object System.Windows.Forms.TextBox; $areaInput.Location = New-Object System.Drawing.Point(170, 15); $areaInput.Size = New-Object System.Drawing.Size(280, 25); $taconitePanel.Controls.Add($areaInput)
-    $icebreakerCheckbox = New-Object System.Windows.Forms.CheckBox; $icebreakerCheckbox.Text = "Icebreaker Assistance Requested"; $icebreakerCheckbox.Location = New-Object System.Drawing.Point(170, 50); $icebreakerCheckbox.Size = New-Object System.Drawing.Size(280, 25); $taconitePanel.Controls.Add($icebreakerCheckbox)
-    $dynamicPanel.Controls.Add($taconitePanel)
-    
-    $coalShovelPanel = New-Object System.Windows.Forms.Panel; $coalShovelPanel.Dock = 'Fill'; $coalShovelPanel.Visible = $false
-    $labelEtd = New-Object System.Windows.Forms.Label; $labelEtd.Text = "ETD / Origin:"; $labelEtd.Location = New-Object System.Drawing.Point(10, 15); $labelEtd.Size = New-Object System.Drawing.Size(150, 20); $coalShovelPanel.Controls.Add($labelEtd)
-    $etdInput = New-Object System.Windows.Forms.TextBox; $etdInput.Location = New-Object System.Drawing.Point(170, 15); $etdInput.Size = New-Object System.Drawing.Size(280, 25); $coalShovelPanel.Controls.Add($etdInput)
-    $dynamicPanel.Controls.Add($coalShovelPanel)
-
-    $labelRequestedDate = New-Object System.Windows.Forms.Label; $labelRequestedDate.Text = "Requested Date / Time:"; $labelRequestedDate.Location = New-Object System.Drawing.Point(30, 330); $entryForm.Controls.Add($labelRequestedDate)
-    $reqDatePicker = New-Object System.Windows.Forms.DateTimePicker; $reqDatePicker.Location = New-Object System.Drawing.Point(190, 330); $reqDatePicker.Format = 'Short'; $entryForm.Controls.Add($reqDatePicker)
-    $reqTimePicker = New-Object System.Windows.Forms.DateTimePicker; $reqTimePicker.Location = New-Object System.Drawing.Point(300, 330); $reqTimePicker.Format = 'Time'; $reqTimePicker.ShowUpDown = $true; $reqTimePicker.Size = New-Object System.Drawing.Size(100, 25); $entryForm.Controls.Add($reqTimePicker)
-    
-    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(350, 370); $submitButton.Size = New-Object System.Drawing.Size(120, 35); $submitButton.Text = "Submit Request"; $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30, 370); $backButton.Size = New-Object System.Drawing.Size(120, 35); $backButton.Text = "Back"; $backButton.DialogResult = 'Cancel'; $entryForm.Controls.Add($backButton)
-    
-    $operationDropdown.Add_SelectedIndexChanged({
-        if ($operationDropdown.SelectedItem -eq "Operation TACONITE") {
-            $taconitePanel.Visible = $true; $coalShovelPanel.Visible = $false
-        } else {
-            $taconitePanel.Visible = $false; $coalShovelPanel.Visible = $true
+    $browseButton.Add_Click({
+        $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
+        $openFileDialog.Title = "Select VMR PDF"
+        $openFileDialog.Filter = "PDF Files (*.pdf)|*.pdf"
+        if ($openFileDialog.ShowDialog() -eq 'OK') {
+            $filePathTextBox.Text = $openFileDialog.FileName
         }
     })
-    $submitButton.Add_Click({
-        $vessel = $vesselNameInput.Text
-        if ([string]::IsNullOrWhiteSpace($vessel)) { [System.Windows.Forms.MessageBox]::Show("Vessel Name cannot be empty.", "Validation Error"); return }
-        
-        $operation = $operationDropdown.SelectedItem
-        $submissionDate = $submissionDatePicker.Value.ToString("yyyy-MM-dd")
-        $reqDate = $reqDatePicker.Value.Date + $reqTimePicker.Value.TimeOfDay
-        $requestedDateTime = $reqDate.ToString("yyyy-MM-dd HH:mm")
-        
-        $area = ""
-        $icebreaker = "No"
-        
-        if ($operation -eq "Operation TACONITE") {
-            $area = $areaInput.Text
-            if ($icebreakerCheckbox.Checked) { $icebreaker = "Yes" }
-        } else {
-            $area = $etdInput.Text
+    $uploadButton.Add_Click({
+        $sourcePath = $filePathTextBox.Text
+        if ([string]::IsNullOrWhiteSpace($sourcePath)) {
+            [System.Windows.Forms.MessageBox]::Show("Please select a file to upload first.", "No File Selected", "OK", "Warning")
+            return
         }
-        
-        Save-VmrRequest -VesselName $vessel -Operation $operation -SubmissionDate $submissionDate -Area $area -RequestedDateTime $requestedDateTime -IcebreakerRequested $icebreaker
-        
-        [System.Windows.Forms.MessageBox]::Show("Vessel request for '$vessel' has been successfully logged.", "Success")
-        $entryForm.Close()
+        $destinationPath = Join-Path $vmrUploadsPath (Split-Path $sourcePath -Leaf)
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Force
+        [System.Windows.Forms.MessageBox]::Show("File successfully uploaded to the 'VMRs Uploaded' folder.", "Upload Successful", "OK", "Information")
+        $filePathTextBox.Text = ""
     })
     
-    $entryForm.ShowDialog()
-}
-
-function Show-VmrRequestsScreen($parentForm) {
-    $requestsForm = New-Object System.Windows.Forms.Form
-    $requestsForm.Text = 'Vessel Requests'
-    $requestsForm.Size = New-Object System.Drawing.Size(900, 550)
-    $requestsForm.StartPosition = 'CenterScreen'
-    $requestsForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(900, 30); $titleLabel.Text = "VESSEL SERVICE REQUESTS"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $requestsForm.Controls.Add($titleLabel)
-    $dataGridView = New-Object System.Windows.Forms.DataGridView
-    $dataGridView.Location = New-Object System.Drawing.Point(20, 60)
-    $dataGridView.Size = New-Object System.Drawing.Size(840, 400)
-    $dataGridView.AllowUserToAddRows = $false
-    $dataGridView.ReadOnly = $true
-    $dataGridView.AutoSizeColumnsMode = 'Fill'
-    $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
-    $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10)
-    $dataGridView.RowHeadersVisible = $false
-    $dataGridView.DataSource = Get-VmrRequests
-    $requestsForm.Controls.Add($dataGridView)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(400, 470); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $requestsForm.CancelButton = $backButton; $requestsForm.Controls.Add($backButton)
-    $requestsForm.ShowDialog()
+    $uploadForm.ShowDialog()
 }
 
 function Show-PocSelectionScreen($parentForm, $currentUser) {
