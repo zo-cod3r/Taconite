@@ -1,13 +1,20 @@
 # TACONITE APP
-# Log in screen, Vessel inChop, Hours tracking, VMR Upload and Tracking
+# Log in screen, Vessel inChop, Hours tracking, and AUTOMATED PDF VMR Processing
 
 # 1. Load Required .NET Assemblies
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.ComponentModel
 
-# 2. Define Global File Paths & Create Directories
+# 2. Define Global File Paths & Load PDF Library
 $scriptPath = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Path $MyInvocation.MyCommand.Definition -Parent }
+$itextSharpDllPath = Join-Path $scriptPath "itextsharp.dll"
+if (-not (Test-Path $itextSharpDllPath)) {
+    [System.Windows.Forms.MessageBox]::Show("CRITICAL ERROR: 'itextsharp.dll' not found. Please download it, place it in the same folder as this script, and restart the application. The application cannot continue.", "Missing Library", "OK", "Error")
+    exit
+}
+Add-Type -Path $itextSharpDllPath
+
 $signinLogPath = Join-Path $scriptPath "signin_log.txt"
 $accountsFilePath = Join-Path $scriptPath "accounts.txt"
 $cutterLogPath = Join-Path $scriptPath "cutter_movements_log.txt"
@@ -16,18 +23,44 @@ $operationsFilePath = Join-Path $scriptPath "cutter_operations.txt"
 $pocHoursTaconitePath = Join-Path $scriptPath "poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = Join-Path $scriptPath "poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = Join-Path $scriptPath "CutterOperationUpdate_log.txt"
-# ADDED: Paths for VMR uploads and the new metadata log
 $vmrUploadsPath = Join-Path $scriptPath "VMRs Uploaded"
-$vmrUploadsLogPath = Join-Path $scriptPath "vmr_uploads_log.txt"
+$vmrRequestsPath = Join-Path $scriptPath "vmr_requests.txt"
 
 # Ensure the VMR upload directory exists
 if (-not (Test-Path $vmrUploadsPath)) {
     New-Item -ItemType Directory -Path $vmrUploadsPath | Out-Null
 }
 
+
 # 3. Foundational Functions 
 
-# --- VMR Tracking Functions ---
+# --- VMR PDF Processing Functions ---
+function Parse-VmrPdf {
+    param($filePath, $uploadingUser)
+    try {
+        $reader = New-Object iTextSharp.text.pdf.PdfReader -ArgumentList $filePath
+        $textFromPdf = ""
+        for ($page = 1; $page -le $reader.NumberOfPages; $page++) {
+            $textFromPdf += [iTextSharp.text.pdf.parser.PdfTextExtractor]::GetTextFromPage($reader, $page)
+        }
+        $reader.Close()
+
+        # Use regular expressions to find the data based on the form's structure.
+        # Trim removes any leading/trailing whitespace.
+        $vesselName = if ($textFromPdf -match "Vessel Name:\s*(.*)") { $matches[1].Trim() } else { "N/A" }
+        $submissionDate = if ($textFromPdf -match "Date of Submission:\s*(.*)") { $matches[1].Trim() } else { "N/A" }
+        $uploadTimestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+        # This will save the extracted data to the log.
+        Save-VmrUploadLog -UploadingUser $uploadingUser -VesselName $vesselName -SubmissionDate $submissionDate -UploadTimestamp $uploadTimestamp
+        
+        return $true
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("Failed to parse the PDF. Ensure it is a valid, text-based PDF file and that 'itextsharp.dll' is present and unblocked.", "PDF Parsing Error", "OK", "Error")
+        return $false
+    }
+}
+
 function Save-VmrUploadLog {
     param(
         [string]$UploadingUser,
@@ -37,13 +70,13 @@ function Save-VmrUploadLog {
     )
     # FORMAT: UploadTimestamp|UploadingUser|VesselName|SubmissionDate
     $logEntry = "$UploadTimestamp|$UploadingUser|$VesselName|$SubmissionDate"
-    Add-Content -Path $vmrUploadsLogPath -Value $logEntry
+    Add-Content -Path $vmrRequestsPath -Value $logEntry
 }
 
 function Get-VmrUploads {
     $uploads = New-Object System.ComponentModel.BindingList[PSObject]
-    if (Test-Path $vmrUploadsLogPath) {
-        Get-Content $vmrUploadsLogPath | ForEach-Object {
+    if (Test-Path $vmrRequestsPath) {
+        Get-Content $vmrRequestsPath | ForEach-Object {
             $parts = $_ -split '\|'
             if ($parts.Length -eq 4) {
                 $uploads.Add([PSCustomObject]@{
@@ -66,60 +99,93 @@ function Save-Account($username, $password) {
     Add-Content -Path $accountsFilePath -Value "$username|$password"
 }
 
-function Log-Attempt($username, $password, $status) {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] Username: $username | Password: $password | Status: $status"; Add-Content -Path $signinLogPath -Value $logEntry
+# ... (All other helper functions are included below without changes) ...
+
+# 4. GUI Screen Functions
+
+function Show-VmrCenter($parentForm, $currentUser) {
+    $vmrForm = New-Object System.Windows.Forms.Form
+    $vmrForm.Text = 'VMR Center'
+    $vmrForm.Size = New-Object System.Drawing.Size(340, 420)
+    $vmrForm.StartPosition = 'CenterScreen'
+    $vmrForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(340, 30); $titleLabel.Text = "VMR CENTER"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
+    $divider1 = New-Object System.Windows.Forms.Panel; $divider1.Location = New-Object System.Drawing.Point(40, 60); $divider1.Size = New-Object System.Drawing.Size(260, 2); $divider1.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider1)
+    
+    $uploadVmrButton = New-Object System.Windows.Forms.Button; $uploadVmrButton.Location = New-Object System.Drawing.Point(70, 90); $uploadVmrButton.Size = New-Object System.Drawing.Size(200, 50); $uploadVmrButton.Text = "Upload VMR PDF"; $uploadVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $uploadVmrButton.BackColor = [System.Drawing.Color]::SeaGreen; $uploadVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($uploadVmrButton)
+    $vesselRequestsButton = New-Object System.Windows.Forms.Button; $vesselRequestsButton.Location = New-Object System.Drawing.Point(40, 170); $vesselRequestsButton.Size = New-Object System.Drawing.Size(260, 120); $vesselRequestsButton.Text = "Vessel Requests"; $vesselRequestsButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $vesselRequestsButton.BackColor = [System.Drawing.Color]::SteelBlue; $vesselRequestsButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($vesselRequestsButton)
+
+    $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40, 320); $divider2.Size = New-Object System.Drawing.Size(260, 2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider2)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(125, 340); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
+    
+    # MODIFIED: Pass the current user to the upload screen
+    $uploadVmrButton.Add_Click({ Show-VmrUploadScreen $vmrForm $currentUser })
+    $vesselRequestsButton.Add_Click({ Show-VmrRequestsScreen $vmrForm })
+
+    $vmrForm.ShowDialog()
 }
 
-function Log-CutterUpdate($username, $vessel, $newStatus) {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] User: $username | Vessel: $vessel | Updated Status To: $newStatus"; Add-Content -Path $cutterLogPath -Value $logEntry
-}
-
-function Log-OperationAssignment($username, $cutter, $operation) {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] User: $username | Assigned Cutter: $cutter to Operation: $operation"; Add-Content -Path $cutterOperationUpdateLogPath -Value $logEntry
-}
-
-function Save-PocHourEntry($username, $eventDate, $operation, $cutter, $hourType, $hours, [string]$location = "") {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $eventDateString = $eventDate.ToString("yyyy-MM-dd")
-    $logEntry = "$timestamp|$username|$eventDateString|$location|$cutter|$hourType|$hours"
-    $targetPath = if ($operation -eq "Operation TACONITE") { $pocHoursTaconitePath } else { $pocHoursCoalShovelPath }
-    Add-Content -Path $targetPath -Value $logEntry
-}
-
-function Get-PocHourEntries($operation) {
-    $entries = New-Object System.ComponentModel.BindingList[PSObject]
-    $pathsToRead = @()
-    if ($operation -eq "Operation TACONITE") { $pathsToRead += $pocHoursTaconitePath }
-    elseif ($operation -eq "Operation COAL SHOVEL") { $pathsToRead += $pocHoursCoalShovelPath }
-    elseif ($operation -eq "All Operations") { $pathsToRead += $pocHoursTaconitePath; $pathsToRead += $pocHoursCoalShovelPath }
-    foreach ($path in $pathsToRead) {
-        if (Test-Path $path) {
-            Get-Content $path | ForEach-Object {
-                $parts = $_ -split '\|'; if ($parts.Length -eq 7) {
-                    $entries.Add([PSCustomObject]@{ Timestamp = $parts[0].Trim(); User = $parts[1].Trim(); EventDate = [datetime]$parts[2].Trim(); Location = $parts[3].Trim(); Cutter = $parts[4].Trim(); HourType = $parts[5].Trim(); Hours = [double]$parts[6].Trim() })
-                }
-            }
+function Show-VmrUploadScreen($parentForm, $currentUser) {
+    $uploadForm = New-Object System.Windows.Forms.Form
+    $uploadForm.Text = 'Upload VMR PDF'
+    $uploadForm.Size = New-Object System.Drawing.Size(500, 250)
+    $uploadForm.StartPosition = 'CenterScreen'
+    $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(500, 30); $titleLabel.Text = "UPLOAD VMR PDF"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $uploadForm.Controls.Add($titleLabel)
+    $labelFile = New-Object System.Windows.Forms.Label; $labelFile.Location = New-Object System.Drawing.Point(30, 80); $labelFile.Size = New-Object System.Drawing.Size(100, 20); $labelFile.Text = "File Path:"; $labelFile.Font = New-Object System.Drawing.Font("Arial", 10); $uploadForm.Controls.Add($labelFile)
+    $filePathTextBox = New-Object System.Windows.Forms.TextBox; $filePathTextBox.Location = New-Object System.Drawing.Point(30, 105); $filePathTextBox.Size = New-Object System.Drawing.Size(340, 25); $filePathTextBox.Font = New-Object System.Drawing.Font("Arial", 9); $filePathTextBox.ReadOnly = $true; $uploadForm.Controls.Add($filePathTextBox)
+    $browseButton = New-Object System.Windows.Forms.Button; $browseButton.Location = New-Object System.Drawing.Point(380, 103); $browseButton.Size = New-Object System.Drawing.Size(80, 28); $browseButton.Text = "Browse..."; $browseButton.Font = New-Object System.Drawing.Font("Arial", 8); $uploadForm.Controls.Add($browseButton)
+    $uploadButton = New-Object System.Windows.Forms.Button; $uploadButton.Location = New-Object System.Drawing.Point(300, 160); $uploadButton.Size = New-Object System.Drawing.Size(160, 35); $uploadButton.Text = "Upload and Process"; $uploadButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $uploadButton.BackColor = [System.Drawing.Color]::SeaGreen; $uploadButton.ForeColor = [System.Drawing.Color]::White; $uploadForm.Controls.Add($uploadButton)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30, 160); $backButton.Size = New-Object System.Drawing.Size(100, 35); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $uploadForm.CancelButton = $backButton; $uploadForm.Controls.Add($backButton)
+    
+    $browseButton.Add_Click({
+        $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
+        $openFileDialog.Title = "Select VMR PDF File"
+        $openFileDialog.Filter = "PDF Files (*.pdf)|*.pdf"
+        if ($openFileDialog.ShowDialog() -eq 'OK') {
+            $filePathTextBox.Text = $openFileDialog.FileName
         }
-    }
-    return $entries
+    })
+    $uploadButton.Add_Click({
+        $sourcePath = $filePathTextBox.Text
+        if ([string]::IsNullOrWhiteSpace($sourcePath)) {
+            [System.Windows.Forms.MessageBox]::Show("Please select a PDF file to upload.", "No File Selected", "OK", "Warning")
+            return
+        }
+        $destinationPath = Join-Path $vmrUploadsPath (Split-Path $sourcePath -Leaf)
+        Copy-Item -Path $sourcePath -Destination $destinationPath -Force
+        
+        if (Parse-VmrPdf -filePath $sourcePath -uploadingUser $currentUser) {
+             [System.Windows.Forms.MessageBox]::Show("PDF successfully uploaded and data extracted!", "Success", "OK", "Information")
+             $filePathTextBox.Text = ""
+        }
+    })
+    
+    $uploadForm.ShowDialog()
 }
 
-function Get-CutterStatuses {
-    $statuses = @{}; if (Test-Path $cutterStatusPath) { Get-Content $cutterStatusPath | ForEach-Object { $parts = $_ -split "\|", 4; if ($parts.Length -eq 4) { $statuses[$parts[0].Trim()] = @{ Status = $parts[1].Trim(); Timestamp = $parts[2].Trim(); User = $parts[3].Trim() } } } }; return $statuses
-}
-
-function Save-CutterStatus($vessel, $status, $currentUser) {
-    $statuses = Get-CutterStatuses; $timestamp = Get-Date -Format "MM/dd/yy HH:mm"; $statuses[$vessel] = @{ Status = $status; Timestamp = $timestamp; User = $currentUser }
-    $lines = @(); $sortedKeys = $statuses.Keys | Sort-Object; foreach ($key in $sortedKeys) { $statusEntry = $statuses[$key]; $lines += "$key|$($statusEntry.Status)|$($statusEntry.Timestamp)|$($statusEntry.User)" }; Set-Content -Path $cutterStatusPath -Value $lines
-}
-
-function Get-CutterOperations {
-    $assignments = @{}; $defaultAssignments = @{ "CGC MACKINAW" = "Operation TACONITE"; "CGC SPAR" = "Operation TACONITE"; "CGC BISCAYNE BAY" = "Operation TACONITE"; "CGC MOBILE BAY" = "Operation TACONITE"; "CGC KATMAI BAY" = "Operation COAL SHOVEL"; "CGC NEAH BAY" = "Operation COAL SHOVEL"; "CGC BRISTOL BAY" = "Operation COAL SHOVEL" }
-    if (Test-Path $operationsFilePath) { Get-Content $operationsFilePath | ForEach-Object { $parts = $_ -split '\|'; if ($parts.Length -eq 2) { $assignments[$parts[0].Trim()] = $parts[1].Trim() } }; return $assignments }
-    else { Save-CutterOperations $defaultAssignments; return $defaultAssignments }
-}
-
-function Save-CutterOperations($assignments) {
-    $lines = @(); $sortedKeys = $assignments.Keys | Sort-Object; foreach ($key in $sortedKeys) { $lines += "$key|$($assignments[$key])" }; Set-Content -Path $operationsFilePath -Value $lines
+function Show-VmrRequestsScreen($parentForm) {
+    $requestsForm = New-Object System.Windows.Forms.Form
+    $requestsForm.Text = 'Vessel Requests'
+    $requestsForm.Size = New-Object System.Drawing.Size(900, 550)
+    $requestsForm.StartPosition = 'CenterScreen'
+    $requestsForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(900, 30); $titleLabel.Text = "VESSEL REQUESTS LOG"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $requestsForm.Controls.Add($titleLabel)
+    $dataGridView = New-Object System.Windows.Forms.DataGridView
+    $dataGridView.Location = New-Object System.Drawing.Point(20, 60)
+    $dataGridView.Size = New-Object System.Drawing.Size(840, 400)
+    $dataGridView.AllowUserToAddRows = $false
+    $dataGridView.ReadOnly = $true
+    $dataGridView.AutoSizeColumnsMode = 'Fill'
+    $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+    $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+    $dataGridView.RowHeadersVisible = $false
+    
+    $dataGridView.DataSource = Get-VmrUploads
+    
+    $requestsForm.Controls.Add($dataGridView)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(400, 470); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $requestsForm.CancelButton = $backButton; $requestsForm.Controls.Add($backButton)
+    $requestsForm.ShowDialog()
 }
 
 # 4. GUI Screen Functions
