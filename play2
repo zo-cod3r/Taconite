@@ -16,37 +16,15 @@ $operationsFilePath = Join-Path $scriptPath "cutter_operations.txt"
 $pocHoursTaconitePath = Join-Path $scriptPath "poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = Join-Path $scriptPath "poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = Join-Path $scriptPath "CutterOperationUpdate_log.txt"
-$vmrRequestsLogPath = Join-Path $scriptPath "vmr_requests_log.txt"
-
+$vmrLogPath = Join-Path $scriptPath "vmr_log.txt"
 
 # 3. Foundational Functions 
-function Save-VmrRequest {
+function Save-VmrEntry {
     param(
         [hashtable]$VmrData
     )
-    # Convert the hashtable to a single, pipe-delimited string for logging
-    $logEntry = "$($VmrData.SubmissionDate)|$($VmrData.VesselName)|$($VmrData.Operation)|$($VmrData.Area)|$($VmrData.RequestedDateTime)|$($VmrData.IcebreakerRequested)"
-    Add-Content -Path $vmrRequestsLogPath -Value $logEntry
-}
-
-function Get-VmrRequests {
-    $requests = New-Object System.ComponentModel.BindingList[PSObject]
-    if (Test-Path $vmrRequestsLogPath) {
-        Get-Content $vmrRequestsLogPath | ForEach-Object {
-            $parts = $_ -split '\|'
-            if ($parts.Length -eq 6) {
-                $requests.Add([PSCustomObject]@{
-                    'Form Submitted' = $parts[0].Trim()
-                    'Vessel Name' = $parts[1].Trim()
-                    'Operation' = $parts[2].Trim()
-                    'Area/Origin' = $parts[3].Trim()
-                    'Time/Date Requested' = $parts[4].Trim()
-                    'Icebreaker Assistance' = $parts[5].Trim()
-                })
-            }
-        }
-    }
-    return $requests
+    $logEntry = $VmrData | ConvertTo-Json -Compress
+    Add-Content -Path $vmrLogPath -Value $logEntry
 }
 
 function Get-Accounts {
@@ -167,187 +145,63 @@ function Show-CutterMovements($parentForm, $currentUser) {
     }); $cutterForm.Add_Load({ &$rebuildDisplay }); $cutterForm.ShowDialog()
 }
 
-function Show-VmrCenter($parentForm, $currentUser) {
+function Show-VmrEntryForm($parentForm, $currentUser) {
     $vmrForm = New-Object System.Windows.Forms.Form
-    $vmrForm.Text = 'VMR Center'
-    $vmrForm.Size = New-Object System.Drawing.Size(340, 420)
+    $vmrForm.Text = 'Vessel Movement Request (VMR) Entry'
+    $vmrForm.Size = New-Object System.Drawing.Size(640, 580)
     $vmrForm.StartPosition = 'CenterScreen'
-    $vmrForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(340, 30); $titleLabel.Text = "VMR CENTER"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
-    $divider1 = New-Object System.Windows.Forms.Panel; $divider1.Location = New-Object System.Drawing.Point(40, 60); $divider1.Size = New-Object System.Drawing.Size(260, 2); $divider1.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider1)
-    $entryButton = New-Object System.Windows.Forms.Button; $entryButton.Location = New-Object System.Drawing.Point(70, 90); $entryButton.Size = New-Object System.Drawing.Size(200, 50); $entryButton.Text = "Enter VMR Data"; $entryButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $entryButton.BackColor = [System.Drawing.Color]::SeaGreen; $entryButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($entryButton)
-    $vesselRequestsButton = New-Object System.Windows.Forms.Button; $vesselRequestsButton.Location = New-Object System.Drawing.Point(40, 170); $vesselRequestsButton.Size = New-Object System.Drawing.Size(260, 120); $vesselRequestsButton.Text = "Vessel Requests"; $vesselRequestsButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $vesselRequestsButton.BackColor = [System.Drawing.Color]::SteelBlue; $vesselRequestsButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($vesselRequestsButton)
-    $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40, 320); $divider2.Size = New-Object System.Drawing.Size(260, 2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider2)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(125, 340); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
-    $entryButton.Add_Click({ Show-VmrEntryForm $vmrForm })
-    $vesselRequestsButton.Add_Click({ Show-VmrRequestsScreen $vmrForm })
-    $vmrForm.ShowDialog()
-}
+    $vmrForm.BackColor = [System.Drawing.Color]::White
 
-function Show-VmrEntryForm($parentForm) {
-    $entryForm = New-Object System.Windows.Forms.Form
-    $entryForm.Text = 'Vessel Movement Request (VMR) Entry'
-    $entryForm.Size = New-Object System.Drawing.Size(560, 520)
-    $entryForm.StartPosition = 'CenterScreen'
-    $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(560, 30); $titleLabel.Text = "VESSEL MOVEMENT REQUEST"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
-    $labelSubmissionDate = New-Object System.Windows.Forms.Label; $labelSubmissionDate.Text = "Date of Submission:"; $labelSubmissionDate.Location = New-Object System.Drawing.Point(30, 70); $labelSubmissionDate.Size = New-Object System.Drawing.Size(150, 20); $entryForm.Controls.Add($labelSubmissionDate)
-    $submissionDatePicker = New-Object System.Windows.Forms.DateTimePicker; $submissionDatePicker.Location = New-Object System.Drawing.Point(190, 70); $submissionDatePicker.Format = 'Short'; $submissionDatePicker.Size = New-Object System.Drawing.Size(120, 25); $entryForm.Controls.Add($submissionDatePicker)
-    $labelVesselName = New-Object System.Windows.Forms.Label; $labelVesselName.Text = "Vessel Name:"; $labelVesselName.Location = New-Object System.Drawing.Point(30, 105); $labelVesselName.Size = New-Object System.Drawing.Size(150, 20); $entryForm.Controls.Add($labelVesselName)
-    $vesselNameInput = New-Object System.Windows.Forms.TextBox; $vesselNameInput.Location = New-Object System.Drawing.Point(190, 105); $vesselNameInput.Size = New-Object System.Drawing.Size(320, 25); $entryForm.Controls.Add($vesselNameInput)
-    $opTaconiteCheckbox = New-Object System.Windows.Forms.CheckBox; $opTaconiteCheckbox.Text = "Operation TACONITE"; $opTaconiteCheckbox.Location = New-Object System.Drawing.Point(30, 150); $opTaconiteCheckbox.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $opTaconiteCheckbox.Size = New-Object System.Drawing.Size(200, 25); $entryForm.Controls.Add($opTaconiteCheckbox)
-    $opCoalShovelCheckbox = New-Object System.Windows.Forms.CheckBox; $opCoalShovelCheckbox.Text = "Operation COAL SHOVEL"; $opCoalShovelCheckbox.Location = New-Object System.Drawing.Point(280, 150); $opCoalShovelCheckbox.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $opCoalShovelCheckbox.Size = New-Object System.Drawing.Size(220, 25); $entryForm.Controls.Add($opCoalShovelCheckbox)
-    $dynamicPanel = New-Object System.Windows.Forms.Panel; $dynamicPanel.Location = New-Object System.Drawing.Point(20, 175); $dynamicPanel.Size = New-Object System.Drawing.Size(480, 150); $entryForm.Controls.Add($dynamicPanel)
-    $taconitePanel = New-Object System.Windows.Forms.GroupBox; $taconitePanel.Location = New-Object System.Drawing.Point(0, 0); $taconitePanel.Size = New-Object System.Drawing.Size(480, 120); $taconitePanel.Text = "TACONITE Details"; $taconitePanel.Visible = $false; $dynamicPanel.Controls.Add($taconitePanel)
-    $labelArea = New-Object System.Windows.Forms.Label; $labelArea.Text = "Area:"; $labelArea.Location = New-Object System.Drawing.Point(15, 30); $taconitePanel.Controls.Add($labelArea)
-    $areaInput = New-Object System.Windows.Forms.TextBox; $areaInput.Location = New-Object System.Drawing.Point(160, 30); $areaInput.Size = New-Object System.Drawing.Size(290, 25); $taconitePanel.Controls.Add($areaInput)
-    $icebreakerCheckbox = New-Object System.Windows.Forms.CheckBox; $icebreakerCheckbox.Text = "Icebreaker Assistance Requested"; $icebreakerCheckbox.Location = New-Object System.Drawing.Point(160, 65); $icebreakerCheckbox.Size = New-Object System.Drawing.Size(290, 25); $taconitePanel.Controls.Add($icebreakerCheckbox)
-    $coalShovelPanel = New-Object System.Windows.Forms.GroupBox; $coalShovelPanel.Location = New-Object System.Drawing.Point(0, 0); $coalShovelPanel.Size = New-Object System.Drawing.Size(480, 80); $coalShovelPanel.Text = "COAL SHOVEL Details"; $coalShovelPanel.Visible = $false; $dynamicPanel.Controls.Add($coalShovelPanel)
-    $labelEtd = New-Object System.Windows.Forms.Label; $labelEtd.Text = "ETD From / Origin:"; $labelEtd.Location = New-Object System.Drawing.Point(15, 30); $labelEtd.Size = New-Object System.Drawing.Size(140, 20); $coalShovelPanel.Controls.Add($labelEtd)
-    $etdInput = New-Object System.Windows.Forms.TextBox; $etdInput.Location = New-Object System.Drawing.Point(160, 30); $etdInput.Size = New-Object System.Drawing.Size(290, 25); $coalShovelPanel.Controls.Add($etdInput)
-    $labelRequestedDateTime = New-Object System.Windows.Forms.Label; $labelRequestedDateTime.Text = "Requested Date / Time:"; $labelRequestedDateTime.Location = New-Object System.Drawing.Point(30, 320); $labelRequestedDateTime.Size = New-Object System.Drawing.Size(150, 20); $entryForm.Controls.Add($labelRequestedDateTime)
-    $reqDatePicker = New-Object System.Windows.Forms.DateTimePicker; $reqDatePicker.Location = New-Object System.Drawing.Point(190, 320); $reqDatePicker.Format = 'Short'; $reqDatePicker.Size = New-Object System.Drawing.Size(120, 25); $entryForm.Controls.Add($reqDatePicker)
-    $reqTimePicker = New-Object System.Windows.Forms.DateTimePicker; $reqTimePicker.Location = New-Object System.Drawing.Point(320, 320); $reqTimePicker.Format = 'Time'; $reqTimePicker.ShowUpDown = $true; $reqTimePicker.Size = New-Object System.Drawing.Size(120, 25); $entryForm.Controls.Add($reqTimePicker)
-    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(390, 400); $submitButton.Size = New-Object System.Drawing.Size(120, 35); $submitButton.Text = "Submit"; $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($submitButton)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(30, 400); $backButton.Size = New-Object System.Drawing.Size(120, 35); $backButton.Text = "Back"; $backButton.DialogResult = 'Cancel'; $entryForm.Controls.Add($backButton)
-    $opTaconiteCheckbox.Add_Click({ if ($opTaconiteCheckbox.Checked) { $opCoalShovelCheckbox.Checked = $false }; $taconitePanel.Visible = $opTaconiteCheckbox.Checked; $coalShovelPanel.Visible = $false })
-    $opCoalShovelCheckbox.Add_Click({ if ($opCoalShovelCheckbox.Checked) { $opTaconiteCheckbox.Checked = $false }; $coalShovelPanel.Visible = $opCoalShovelCheckbox.Checked; $taconitePanel.Visible = $false })
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 10); $titleLabel.Size = New-Object System.Drawing.Size(640, 30); $titleLabel.Text = "VESSEL MOVEMENT REPORT (VMR)"; $titleLabel.Font = New-Object System.Drawing.Font("Times New Roman", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
+
+    $labelSubmissionDate = New-Object System.Windows.Forms.Label; $labelSubmissionDate.Text = "DATE OF SUBMISSION:"; $labelSubmissionDate.Location = New-Object System.Drawing.Point(30, 50); $labelSubmissionDate.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelSubmissionDate.AutoSize = $true; $vmrForm.Controls.Add($labelSubmissionDate)
+    $submissionDatePicker = New-Object System.Windows.Forms.DateTimePicker; $submissionDatePicker.Location = New-Object System.Drawing.Point(220, 50); $submissionDatePicker.Format = 'Short'; $submissionDatePicker.Size = New-Object System.Drawing.Size(120, 25); $vmrForm.Controls.Add($submissionDatePicker)
+
+    $labelVesselName = New-Object System.Windows.Forms.Label; $labelVesselName.Text = "VESSEL NAME:"; $labelVesselName.Location = New-Object System.Drawing.Point(30, 85); $labelVesselName.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelVesselName.AutoSize = $true; $vmrForm.Controls.Add($labelVesselName)
+    $vesselNameInput = New-Object System.Windows.Forms.TextBox; $vesselNameInput.Location = New-Object System.Drawing.Point(220, 85); $vesselNameInput.Size = New-Object System.Drawing.Size(350, 25); $vmrForm.Controls.Add($vesselNameInput)
+    
+    $opTaconiteCheckbox = New-Object System.Windows.Forms.CheckBox; $opTaconiteCheckbox.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION TACONITE"; $opTaconiteCheckbox.Location = New-Object System.Drawing.Point(30, 130); $opTaconiteCheckbox.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $opTaconiteCheckbox.AutoSize = $true; $vmrForm.Controls.Add($opTaconiteCheckbox)
+    
+    $taconitePanel = New-Object System.Windows.Forms.Panel; $taconitePanel.Location = New-Object System.Drawing.Point(30, 160); $taconitePanel.Size = New-Object System.Drawing.Size(560, 130); $taconitePanel.BorderStyle = 'FixedSingle'; $vmrForm.Controls.Add($taconitePanel)
+    $labelArea = New-Object System.Windows.Forms.Label; $labelArea.Text = "AREA:"; $labelArea.Location = New-Object System.Drawing.Point(15, 15); $labelArea.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle Bold]); $labelArea.AutoSize = $true; $taconitePanel.Controls.Add($labelArea)
+    $areaInput = New-Object System.Windows.Forms.TextBox; $areaInput.Location = New-Object System.Drawing.Point(200, 15); $areaInput.Size = New-Object System.Drawing.Size(340, 25); $areaInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconitePanel.Controls.Add($areaInput)
+    $labelReqDateTimeTaconite = New-Object System.Windows.Forms.Label; $labelReqDateTimeTaconite.Text = "REQUESTED DATE AND TIME FOR ASSISTANCE:"; $labelReqDateTimeTaconite.Location = New-Object System.Drawing.Point(15, 50); $labelReqDateTimeTaconite.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle Bold]); $labelReqDateTimeTaconite.AutoSize = $true; $taconitePanel.Controls.Add($labelReqDateTimeTaconite)
+    $reqDateTimeTaconiteInput = New-Object System.Windows.Forms.TextBox; $reqDateTimeTaconiteInput.Location = New-Object System.Drawing.Point(340, 45); $reqDateTimeTaconiteInput.Size = New-Object System.Drawing.Size(200, 25); $reqDateTimeTaconiteInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconitePanel.Controls.Add($reqDateTimeTaconiteInput)
+    $icebreakerCheckbox = New-Object System.Windows.Forms.CheckBox; $icebreakerCheckbox.Text = "IS ICE BREAKER ASSISTANCE REQUESTED"; $icebreakerCheckbox.Location = New-Object System.Drawing.Point(15, 85); $icebreakerCheckbox.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle Bold]); $icebreakerCheckbox.AutoSize = $true; $taconitePanel.Controls.Add($icebreakerCheckbox)
+
+    $opCoalShovelCheckbox = New-Object System.Windows.Forms.CheckBox; $opCoalShovelCheckbox.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION COAL SHOVEL"; $opCoalShovelCheckbox.Location = New-Object System.Drawing.Point(30, 310); $opCoalShovelCheckbox.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $opCoalShovelCheckbox.AutoSize = $true; $vmrForm.Controls.Add($opCoalShovelCheckbox)
+    $coalShovelPanel = New-Object System.Windows.Forms.Panel; $coalShovelPanel.Location = New-Object System.Drawing.Point(30, 340); $coalShovelPanel.Size = New-Object System.Drawing.Size(560, 80); $coalShovelPanel.BorderStyle = 'FixedSingle'; $vmrForm.Controls.Add($coalShovelPanel)
+    $labelEtd = New-Object System.Windows.Forms.Label; $labelEtd.Text = "ETD FROM:"; $labelEtd.Location = New-Object System.Drawing.Point(15, 15); $labelEtd.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle Bold]); $labelEtd.AutoSize = $true; $coalShovelPanel.Controls.Add($labelEtd)
+    $etdInput = New-Object System.Windows.Forms.TextBox; $etdInput.Location = New-Object System.Drawing.Point(200, 15); $etdInput.Size = New-Object System.Drawing.Size(340, 25); $etdInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $coalShovelPanel.Controls.Add($etdInput)
+    $labelReqDateTimeCoal = New-Object System.Windows.Forms.Label; $labelReqDateTimeCoal.Text = "ON (DATE/TIME):"; $labelReqDateTimeCoal.Location = New-Object System.Drawing.Point(15, 45); $labelReqDateTimeCoal.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle Bold]); $labelReqDateTimeCoal.AutoSize = $true; $coalShovelPanel.Controls.Add($labelReqDateTimeCoal)
+    $reqDateTimeCoalInput = New-Object System.Windows.Forms.TextBox; $reqDateTimeCoalInput.Location = New-Object System.Drawing.Point(200, 45); $reqDateTimeCoalInput.Size = New-Object System.Drawing.Size(200, 25); $reqDateTimeCoalInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $coalShovelPanel.Controls.Add($reqDateTimeCoalInput)
+
+    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(450, 440); $submitButton.Size = New-Object System.Drawing.Size(120, 40); $submitButton.Text = "SUBMIT"; $submitButton.BackColor = [System.Drawing.Color]::FromArgb(0, 122, 204); $submitButton.ForeColor = [System.Drawing.Color]::White; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($submitButton)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(20, 440); $backButton.Size = New-Object System.Drawing.Size(120, 40); $backButton.Text = "Back"; $backButton.DialogResult = 'Cancel'; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
+    
     $submitButton.Add_Click({
         $vmrData = @{
-            VesselName = $vesselNameInput.Text
             SubmissionDate = $submissionDatePicker.Value.ToString("yyyy-MM-dd")
-            RequestedDateTime = ($reqDatePicker.Value.Date + $reqTimePicker.Value.TimeOfDay).ToString("yyyy-MM-dd HH:mm")
+            VesselName = $vesselNameInput.Text
+            Taconite_Checked = $opTaconiteCheckbox.Checked
+            Taconite_Area = $areaInput.Text
+            Taconite_RequestedDateTime = $reqDateTimeTaconiteInput.Text
+            Taconite_IcebreakerRequested = if ($icebreakerCheckbox.Checked) { "Yes" } else { "No" }
+            CoalShovel_Checked = $opCoalShovelCheckbox.Checked
+            CoalShovel_EtdFrom = $etdInput.Text
+            CoalShovel_RequestedDateTime = $reqDateTimeCoalInput.Text
         }
-        if ([string]::IsNullOrWhiteSpace($vmrData.VesselName)) { [System.Windows.Forms.MessageBox]::Show("Vessel Name cannot be empty.", "Validation Error"); return }
-        if (-not ($opTaconiteCheckbox.Checked -or $opCoalShovelCheckbox.Checked)) { [System.Windows.Forms.MessageBox]::Show("Please select an Operation.", "Validation Error"); return }
-        if ($opTaconiteCheckbox.Checked) {
-            $vmrData.Operation = "Operation TACONITE"
-            $vmrData.Area = $areaInput.Text
-            $vmrData.IcebreakerRequested = if ($icebreakerCheckbox.Checked) { "Yes" } else { "No" }
-        } else {
-            $vmrData.Operation = "Operation COAL SHOVEL"
-            $vmrData.Area = $etdInput.Text
-            $vmrData.IcebreakerRequested = "N/A"
+        if ([string]::IsNullOrWhiteSpace($vmrData.VesselName)) { 
+            [System.Windows.Forms.MessageBox]::Show("Vessel Name cannot be empty.", "Validation Error")
+            return 
         }
-        Save-VmrRequest -VmrData $vmrData
+
+        Save-VmrEntry -VmrData $vmrData
         [System.Windows.Forms.MessageBox]::Show("VMR for $($vmrData.VesselName) has been successfully logged.", "Success")
         $vmrForm.Close()
     })
-    $entryForm.ShowDialog()
-}
-
-function Show-VmrRequestsScreen($parentForm) {
-    $requestsForm = New-Object System.Windows.Forms.Form
-    $requestsForm.Text = 'Vessel Requests'
-    $requestsForm.Size = New-Object System.Drawing.Size(900, 550)
-    $requestsForm.StartPosition = 'CenterScreen'
-    $requestsForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(900, 30); $titleLabel.Text = "VESSEL SERVICE REQUESTS"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $requestsForm.Controls.Add($titleLabel)
-    $dataGridView = New-Object System.Windows.Forms.DataGridView
-    $dataGridView.Location = New-Object System.Drawing.Point(20, 60)
-    $dataGridView.Size = New-Object System.Drawing.Size(840, 400)
-    $dataGridView.AllowUserToAddRows = $false
-    $dataGridView.ReadOnly = $true
-    $dataGridView.AutoSizeColumnsMode = 'Fill'
-    $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
-    $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10)
-    $dataGridView.RowHeadersVisible = $false
-    $dataGridView.DataSource = Get-VmrRequests
-    $requestsForm.Controls.Add($dataGridView)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(400, 470); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $requestsForm.CancelButton = $backButton; $requestsForm.Controls.Add($backButton)
-    $requestsForm.ShowDialog()
-}
-
-function Show-PocSelectionScreen($parentForm, $currentUser) {
-    $selectionForm = New-Object System.Windows.Forms.Form; $selectionForm.Text = 'Taconite App - Cutter POCs'; $selectionForm.Size = New-Object System.Drawing.Size(500, 380); $selectionForm.StartPosition = 'CenterScreen'; $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $taconiteHeader = New-Object System.Windows.Forms.Label; $taconiteHeader.Location = New-Object System.Drawing.Point(0, 20); $taconiteHeader.Size = New-Object System.Drawing.Size(250, 30); $taconiteHeader.Text = "TACONITE"; $taconiteHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $taconiteHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $selectionForm.Controls.Add($taconiteHeader)
-    $taconiteDataEntryBtn = New-Object System.Windows.Forms.Button; $taconiteDataEntryBtn.Location = New-Object System.Drawing.Point(40, 70); $taconiteDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60); $taconiteDataEntryBtn.Text = 'Data Entry'; $taconiteDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $taconiteDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue; $taconiteDataEntryBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($taconiteDataEntryBtn)
-    $taconiteViewDataBtn = New-Object System.Windows.Forms.Button; $taconiteViewDataBtn.Location = New-Object System.Drawing.Point(40, 140); $taconiteViewDataBtn.Size = New-Object System.Drawing.Size(170, 60); $taconiteViewDataBtn.Text = 'View Data'; $taconiteViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $taconiteViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray; $taconiteViewDataBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($taconiteViewDataBtn)
-    $coalShovelHeader = New-Object System.Windows.Forms.Label; $coalShovelHeader.Location = New-Object System.Drawing.Point(250, 20); $coalShovelHeader.Size = New-Object System.Drawing.Size(250, 30); $coalShovelHeader.Text = "COAL SHOVEL"; $coalShovelHeader.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $coalShovelHeader.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $selectionForm.Controls.Add($coalShovelHeader)
-    $coalShovelDataEntryBtn = New-Object System.Windows.Forms.Button; $coalShovelDataEntryBtn.Location = New-Object System.Drawing.Point(290, 70); $coalShovelDataEntryBtn.Size = New-Object System.Drawing.Size(170, 60); $coalShovelDataEntryBtn.Text = 'Data Entry'; $coalShovelDataEntryBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $coalShovelDataEntryBtn.BackColor = [System.Drawing.Color]::SteelBlue; $coalShovelDataEntryBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($coalShovelDataEntryBtn)
-    $coalShovelViewDataBtn = New-Object System.Windows.Forms.Button; $coalShovelViewDataBtn.Location = New-Object System.Drawing.Point(290, 140); $coalShovelViewDataBtn.Size = New-Object System.Drawing.Size(170, 60); $coalShovelViewDataBtn.Text = 'View Data'; $coalShovelViewDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $coalShovelViewDataBtn.BackColor = [System.Drawing.Color]::DarkSlateGray; $coalShovelViewDataBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($coalShovelViewDataBtn)
-    $viewAllDataBtn = New-Object System.Windows.Forms.Button; $viewAllDataBtn.Location = New-Object System.Drawing.Point(165, 230); $viewAllDataBtn.Size = New-Object System.Drawing.Size(170, 45); $viewAllDataBtn.Text = "View All Data"; $viewAllDataBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $viewAllDataBtn.BackColor = [System.Drawing.Color]::Firebrick; $viewAllDataBtn.ForeColor = [System.Drawing.Color]::White; $selectionForm.Controls.Add($viewAllDataBtn)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(210, 295); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $selectionForm.CancelButton = $backButton; $selectionForm.Controls.Add($backButton)
-    $taconiteDataEntryBtn.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser "Operation TACONITE" }); $taconiteViewDataBtn.Add_Click({ Show-PocDataViewScreen $selectionForm "Operation TACONITE" })
-    $coalShovelDataEntryBtn.Add_Click({ Show-PocDataEntryScreen $selectionForm $currentUser "Operation COAL SHOVEL" }); $coalShovelViewDataBtn.Add_Click({ Show-PocDataViewScreen $selectionForm "Operation COAL SHOVEL" })
-    $viewAllDataBtn.Add_Click({ Show-PocDataViewScreen $selectionForm "All Operations" }); $selectionForm.ShowDialog()
-}
-
-function Show-PocDataEntryScreen($parentForm, $currentUser, $operation) {
-    $entryForm = New-Object System.Windows.Forms.Form; $entryForm.Text = "Taconite App - POC Hour Entry ($operation)"; $entryForm.StartPosition = 'CenterScreen'; $entryForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $entryForm.Size = New-Object System.Drawing.Size(920, 500)
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(920, 30); $titleLabel.Text = "POC HOUR ENTRY"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $entryForm.Controls.Add($titleLabel)
-    $labelCutter = New-Object System.Windows.Forms.Label; $labelCutter.Location = New-Object System.Drawing.Point(30, 60); $labelCutter.Size = New-Object System.Drawing.Size(120, 20); $labelCutter.Text = "Select Cutter:"; $labelCutter.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $entryForm.Controls.Add($labelCutter)
-    $vesselDropdown = New-Object System.Windows.Forms.ComboBox; $vesselDropdown.Location = New-Object System.Drawing.Point(150, 58); $vesselDropdown.Size = New-Object System.Drawing.Size(180, 25); $vesselDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $vesselDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $vesselDropdown.Items.AddRange(((Get-CutterOperations).Keys | Sort-Object)); $vesselDropdown.SelectedIndex = 0; $entryForm.Controls.Add($vesselDropdown)
-    $headerPanel = New-Object System.Windows.Forms.Panel; $headerPanel.Location = New-Object System.Drawing.Point(10, 100); $headerPanel.Size = New-Object System.Drawing.Size(880, 30); $entryForm.Controls.Add($headerPanel)
-    $labelHeaderDate = New-Object System.Windows.Forms.Label; $labelHeaderDate.Text = "Hour Date"; $labelHeaderDate.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderDate.Location = New-Object System.Drawing.Point(20, 5); $labelHeaderDate.Size = New-Object System.Drawing.Size(120, 20); $headerPanel.Controls.Add($labelHeaderDate)
-    $labelHeaderLocation = New-Object System.Windows.Forms.Label; $labelHeaderLocation.Text = "Location"; $labelHeaderLocation.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderLocation.Location = New-Object System.Drawing.Point(170, 5); $labelHeaderLocation.Size = New-Object System.Drawing.Size(280, 20); $headerPanel.Controls.Add($labelHeaderLocation)
-    $labelHeaderHourType = New-Object System.Windows.Forms.Label; $labelHeaderHourType.Text = "Hour Type"; $labelHeaderHourType.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHourType.Location = New-Object System.Drawing.Point(460, 5); $labelHeaderHourType.Size = New-Object System.Drawing.Size(80, 20); $headerPanel.Controls.Add($labelHeaderHourType)
-    $labelHeaderHours = New-Object System.Windows.Forms.Label; $labelHeaderHours.Text = "Hours"; $labelHeaderHours.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $labelHeaderHours.Location = New-Object System.Drawing.Point(550, 5); $labelHeaderHours.Size = New-Object System.Drawing.Size(60, 20); $headerPanel.Controls.Add($labelHeaderHours)
-    $mainPanel = New-Object System.Windows.Forms.Panel; $mainPanel.Location = New-Object System.Drawing.Point(10, 130); $mainPanel.Size = New-Object System.Drawing.Size(880, 270); $mainPanel.AutoScroll = $true; $mainPanel.BorderStyle = 'FixedSingle'; $entryForm.Controls.Add($mainPanel)
-    $rowControls = [System.Collections.ArrayList]@()
-    $currentY = 10
-    $addRow = {
-        param([System.Windows.Forms.Panel]$panel, [System.Collections.ArrayList]$controlsList, [ref]$yPosition)
-        $rowPanel = New-Object System.Windows.Forms.Panel; $rowPanel.Location = New-Object System.Drawing.Point(10, $yPosition.Value); $rowPanel.Size = New-Object System.Drawing.Size(850, 40); $panel.Controls.Add($rowPanel)
-        $datePicker = New-Object System.Windows.Forms.DateTimePicker; $datePicker.Location = New-Object System.Drawing.Point(10, 5); $datePicker.Size = New-Object System.Drawing.Size(120, 25); $datePicker.Format = 'Short'; $rowPanel.Controls.Add($datePicker)
-        $locationDropdown = New-Object System.Windows.Forms.ComboBox; $locationDropdown.Location = New-Object System.Drawing.Point(160, 5); $locationDropdown.Size = New-Object System.Drawing.Size(280, 25); $locationDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $locationDropdown.DropDownStyle = 'DropDown'; $locationDropdown.AutoCompleteMode = 'SuggestAppend'; $locationDropdown.AutoCompleteSource = 'ListItems'
-        $locations = if ($operation -eq "Operation TACONITE") { @("Thunder Bay, MI", "Straits of Mackinac", "Lake Huron", "Green Bay", "Lake Michigan", "St. Marys River", "Georgian Bay", "North Channel", "Alpena", "Cheboygan", "Charlevoix", "Grand Traverse Bay", "Whitefish Bay", "Eastern Lake Superior", "Marquette", "Central Lake Superior", "Keweenaw", "Duluth, Superior", "Western Lake Superior", "Two Harbors", "Silver Bay", "Apostle Islands", "Thunder Bay, ON", "Escanaba", "Marinette", "Lake Michigan-West Milwaukee", "Lake Michigan-South Calumet-Gary-Indiana Harbor", "Lake Michigan-East Ludington") } else { @("Lake St. Claire", "St. Claire River", "Lake Erie") }
-        $locationDropdown.Items.AddRange($locations); $locationDropdown.SelectedIndex = 0; $rowPanel.Controls.Add($locationDropdown)
-        $hourTypeDropdown = New-Object System.Windows.Forms.ComboBox; $hourTypeDropdown.Location = New-Object System.Drawing.Point(450, 5); $hourTypeDropdown.Size = New-Object System.Drawing.Size(80, 25); $hourTypeDropdown.Font = New-Object System.Drawing.Font("Arial", 9); $hourTypeDropdown.DropDownStyle = 'DropDownList'; $hourTypeDropdown.Items.AddRange(@("VA", "DA", "PI", "MC")); $hourTypeDropdown.SelectedIndex = 0; $rowPanel.Controls.Add($hourTypeDropdown)
-        $hoursInput = New-Object System.Windows.Forms.TextBox; $hoursInput.Location = New-Object System.Drawing.Point(540, 5); $hoursInput.Size = New-Object System.Drawing.Size(60, 25); $hoursInput.Font = New-Object System.Drawing.Font("Arial", 9); $rowPanel.Controls.Add($hoursInput)
-        $null = $controlsList.Add([PSCustomObject]@{ Panel = $rowPanel; Date = $datePicker; Location = $locationDropdown; HourType = $hourTypeDropdown; Hours = $hoursInput })
-        $yPosition.Value += 45
-    }
-    $addButton = New-Object System.Windows.Forms.Button; $addButton.Location = New-Object System.Drawing.Point(10, 415); $addButton.Size = New-Object System.Drawing.Size(30, 30); $addButton.Text = '+'; $addButton.Font = New-Object System.Drawing.Font("Arial", 12, [System.Drawing.FontStyle]::Bold); $addButton.BackColor = [System.Drawing.Color]::LightGreen; $entryForm.Controls.Add($addButton)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(670, 415); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $entryForm.CancelButton = $backButton; $entryForm.Controls.Add($backButton)
-    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(760, 415); $submitButton.Size = New-Object System.Drawing.Size(120, 30); $submitButton.Text = 'Submit All'; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $submitButton.BackColor = [System.Drawing.Color]::SeaGreen; $submitButton.ForeColor = [System.Drawing.Color]::White; $entryForm.Controls.Add($submitButton)
-    $addButton.Add_Click({ & $addRow $mainPanel $rowControls ([ref]$currentY) }); $submitButton.Add_Click({
-        if (!$vesselDropdown.SelectedItem) { [System.Windows.Forms.MessageBox]::Show("Please select a cutter.", "Cutter Not Selected"); return }
-        $selectedCutter = $vesselDropdown.SelectedItem.ToString(); $entriesSaved = 0
-        foreach ($row in $rowControls) {
-            $enteredHours = $row.Hours.Text.Trim()
-            if (-not [string]::IsNullOrWhiteSpace($enteredHours)) {
-                if ($enteredHours -match '^\d+(\.\d+)?$') { Save-PocHourEntry $currentUser $row.Date.Value $operation $selectedCutter $row.HourType.SelectedItem $enteredHours $row.Location.Text; $entriesSaved++ }
-                else { [System.Windows.Forms.MessageBox]::Show("An entry with invalid hours ('$enteredHours') was skipped.", "Invalid Entry Skipped") }
-            }
-        }
-        [System.Windows.Forms.MessageBox]::Show("$entriesSaved entries saved successfully for $selectedCutter.", "Batch Entry Complete")
-        $mainPanel.Controls.Clear(); $rowControls.Clear(); $currentY = 10; & $addRow $mainPanel $rowControls ([ref]$currentY)
-    }); & $addRow $mainPanel $rowControls ([ref]$currentY); $entryForm.ShowDialog()
-}
-
-function Show-PocDataViewScreen($parentForm, $operation) {
-    $viewDataForm = New-Object System.Windows.Forms.Form; $viewDataForm.Text = "POC Hours Summary ($operation)"; $viewDataForm.Size = New-Object System.Drawing.Size(840, 480); $viewDataForm.StartPosition = 'CenterScreen'; $viewDataForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-    $labelYearFilter = New-Object System.Windows.Forms.Label; $labelYearFilter.Location = New-Object System.Drawing.Point(20, 15); $labelYearFilter.Size = New-Object System.Drawing.Size(100, 20); $labelYearFilter.Text = "Filter by Year:"; $labelYearFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($labelYearFilter)
-    $yearComboBox = New-Object System.Windows.Forms.ComboBox; $yearComboBox.Location = New-Object System.Drawing.Point(130, 12); $yearComboBox.Size = New-Object System.Drawing.Size(100, 25); $yearComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $viewDataForm.Controls.Add($yearComboBox)
-    $labelLocationFilter = New-Object System.Windows.Forms.Label; $labelLocationFilter.Location = New-Object System.Drawing.Point(250, 15); $labelLocationFilter.Size = New-Object System.Drawing.Size(120, 20); $labelLocationFilter.Text = "Filter by Location:"; $labelLocationFilter.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($labelLocationFilter)
-    $locationComboBox = New-Object System.Windows.Forms.ComboBox; $locationComboBox.Location = New-Object System.Drawing.Point(380, 12); $locationComboBox.Size = New-Object System.Drawing.Size(280, 25); $locationComboBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $viewDataForm.Controls.Add($locationComboBox)
-    $dataGridView = New-Object System.Windows.Forms.DataGridView; $dataGridView.Location = New-Object System.Drawing.Point(20, 50); $dataGridView.Size = New-Object System.Drawing.Size(780, 320); $dataGridView.AllowUserToAddRows = $false; $dataGridView.ReadOnly = $true; $dataGridView.AutoSizeColumnsMode = 'AllCells'; $dataGridView.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $dataGridView.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10); $dataGridView.RowHeadersVisible = $false; $dataGridView.Columns.Add("Cutter", "Cutter"); $dataGridView.Columns.Add("VA", "VA"); $dataGridView.Columns.Add("DA", "DA"); $dataGridView.Columns.Add("PI", "PI"); $dataGridView.Columns.Add("MC", "MC"); $dataGridView.Columns.Add("Total", "Cutter Total"); $dataGridView.Columns["Cutter"].DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $viewDataForm.Controls.Add($dataGridView)
-    $updateTable = {
-        $dataGridView.Rows.Clear(); $allCutters = (Get-CutterOperations).Keys | Sort-Object; $operationEntries = Get-PocHourEntries -operation $operation; $selectedYear = $yearComboBox.SelectedItem; $selectedLocation = $locationComboBox.SelectedItem
-        $filteredEntries = $operationEntries; if ($selectedYear -and $selectedYear -ne "All Years") { $filteredEntries = $filteredEntries | Where-Object { $_.EventDate.Year -eq $selectedYear } }; if ($selectedLocation -and $selectedLocation -ne "All Locations") { $filteredEntries = $filteredEntries | Where-Object { $_.Location -eq $selectedLocation } }
-        $getSum = { param($data, $cutterFilter, $typeFilter) return ($data | Where-Object { $_.Cutter -eq $cutterFilter -and $_.HourType -eq $typeFilter } | Measure-Object -Property Hours -Sum).Sum }
-        $columnTotals = @{ "VA" = 0; "DA" = 0; "PI" = 0; "MC" = 0 }
-        foreach ($cutter in $allCutters) {
-            $va_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "VA"; $da_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "DA"; $pi_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "PI"; $mc_total = &$getSum -data $filteredEntries -cutterFilter $cutter -typeFilter "MC"
-            $rowTotal = $va_total + $da_total + $pi_total + $mc_total; $dataGridView.Rows.Add($cutter, $va_total, $da_total, $pi_total, $mc_total, $rowTotal)
-            $columnTotals["VA"] += $va_total; $columnTotals["DA"] += $da_total; $columnTotals["PI"] += $pi_total; $columnTotals["MC"] += $mc_total
-        }
-        $grandTotal = $columnTotals.Values | Measure-Object -Sum | Select-Object -ExpandProperty Sum; $dataGridView.Rows.Add("TOTALS", $columnTotals["VA"], $columnTotals["DA"], $columnTotals["PI"], $columnTotals["MC"], $grandTotal)
-        $totalsRow = $dataGridView.Rows[$dataGridView.Rows.Count - 1]; $totalsRow.DefaultCellStyle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold); $totalsRow.DefaultCellStyle.BackColor = [System.Drawing.Color]::LightGray
-    }; $yearComboBox.add_SelectedIndexChanged({ &$updateTable }); $locationComboBox.add_SelectedIndexChanged({ &$updateTable })
-    $viewDataForm.add_Load({
-        $currentYear = (Get-Date).Year; $allYears = (Get-PocHourEntries -operation $operation | Select-Object @{N="Year";E={$_.EventDate.Year}} -Unique | Sort-Object Year -Descending).Year
-        $yearComboBox.Items.Clear(); $yearComboBox.Items.Add("All Years"); if ($allYears) { $yearComboBox.Items.AddRange($allYears) }; if ($yearComboBox.Items.Contains($currentYear)) { $yearComboBox.SelectedItem = $currentYear } else { $yearComboBox.SelectedIndex = 0 }
-        $locationComboBox.Items.Clear(); $locationComboBox.Items.Add("All Locations")
-        $allLocations = if ($operation -eq "Operation TACONITE") { @("Thunder Bay, MI", "Straits of Mackinac", "Lake Huron", "Green Bay", "Lake Michigan", "St. Marys River", "Georgian Bay", "North Channel", "Alpena", "Cheboygan", "Charlevoix", "Grand Traverse Bay", "Whitefish Bay", "Eastern Lake Superior", "Marquette", "Central Lake Superior", "Keweenaw", "Duluth, Superior", "Western Lake Superior", "Two Harbors", "Silver Bay", "Apostle Islands", "Thunder Bay, ON", "Escanaba", "Marinette", "Lake Michigan-West Milwaukee", "Lake Michigan-South Calumet-Gary-Indiana Harbor", "Lake Michigan-East Ludington") }
-        elseif ($operation -eq "Operation COAL SHOVEL") { @("Lake St. Claire", "St. Claire River", "Lake Erie") }
-        else { $taconiteLocations = @("Thunder Bay, MI", "Straits of Mackinac", "Lake Huron", "Green Bay", "Lake Michigan", "St. Marys River", "Georgian Bay", "North Channel", "Alpena", "Cheboygan", "Charlevoix", "Grand Traverse Bay", "Whitefish Bay", "Eastern Lake Superior", "Marquette", "Central Lake Superior", "Keweenaw", "Duluth, Superior", "Western Lake Superior", "Two Harbors", "Silver Bay", "Apostle Islands", "Thunder Bay, ON", "Escanaba", "Marinette", "Lake Michigan-West Milwaukee", "Lake Michigan-South Calumet-Gary-Indiana Harbor", "Lake Michigan-East Ludington"); $coalShovelLocations = @("Lake St. Claire", "St. Claire River", "Lake Erie"); $taconiteLocations + $coalShovelLocations | Sort-Object -Unique }
-        if ($allLocations) { $locationComboBox.Items.AddRange($allLocations) }; $locationComboBox.SelectedIndex = 0
-        &$updateTable
-    }); $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(375, 385); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $viewDataForm.Controls.Add($backButton); $viewDataForm.CancelButton = $backButton
-    $viewDataForm.ShowDialog()
+    
+    $vmrForm.ShowDialog()
 }
 
 function Show-LoginForm {
@@ -376,8 +230,15 @@ function Show-LoginForm {
             $tbdButton = New-Object System.Windows.Forms.Button; $tbdButton.Location = New-Object System.Drawing.Point(210,205); $tbdButton.Size = New-Object System.Drawing.Size(130,60); $tbdButton.Text = 'TBD'; $tbdButton.Font = New-Object System.Drawing.Font("Arial", 13, [System.Drawing.FontStyle]::Bold); $tbdButton.BackColor = [System.Drawing.Color]::IndianRed; $tbdButton.ForeColor = [System.Drawing.Color]::White; $tbdButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; $tbdButton.FlatAppearance.BorderSize = 0; $homeForm.Controls.Add($tbdButton)
             $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40,290); $divider2.Size = New-Object System.Drawing.Size(300,2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $homeForm.Controls.Add($divider2)
             $logoutButton = New-Object System.Windows.Forms.Button; $logoutButton.Location = New-Object System.Drawing.Point(140,310); $logoutButton.Size = New-Object System.Drawing.Size(100,35); $logoutButton.Text = 'Log Out'; $logoutButton.Font = New-Object System.Drawing.Font("Arial", 10); $logoutButton.BackColor = [System.Drawing.Color]::DimGray; $logoutButton.ForeColor = [System.Drawing.Color]::White; $logoutButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; $logoutButton.FlatAppearance.BorderSize = 0; $homeForm.Controls.Add($logoutButton)
-            $vmrButton.Add_Click({ Show-VmrCenter $homeForm $username }); $cutterButton.Add_Click({ Show-CutterMovements $homeForm $username }); $pocsButton.Add_Click({ Show-PocSelectionScreen $homeForm $username }); $tbdButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("TBD clicked - feature coming soon!", "TBD") })
-            $logoutButton.Add_Click({ Log-Attempt $username "" "LOGGED OUT"; $homeForm.Hide(); [System.Windows.Forms.MessageBox]::Show("You have successfully logged out.", "Logged Out"); $homeForm.Close(); Show-LoginForm }); $homeForm.ShowDialog(); $form.Close()
+            
+            # MODIFIED: VMRs button now opens the new data entry form
+            $vmrButton.Add_Click({ Show-VmrEntryForm $homeForm $username });
+            
+            $cutterButton.Add_Click({ Show-CutterMovements $homeForm $username });
+            $pocsButton.Add_Click({ Show-PocSelectionScreen $homeForm $username }); 
+            $tbdButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("TBD clicked - feature coming soon!", "TBD") })
+            $logoutButton.Add_Click({ Log-Attempt $username "" "LOGGED OUT"; $homeForm.Hide(); [System.Windows.Forms.MessageBox]::Show("You have successfully logged out.", "Logged Out"); $homeForm.Close(); Show-LoginForm });
+            $homeForm.ShowDialog(); $form.Close()
         } else { Log-Attempt $username $password "FAILED"; $statusLabel.Text = 'Invalid username or password.' }
     }); $createButton.Add_Click({
         $username = $textBoxUsername.Text.Trim(); $password = $textBoxPassword.Text.Trim()
