@@ -108,38 +108,42 @@ function Show-VmrEntryForm($parentForm, $currentUser) {
     $labelVesselName = New-Object System.Windows.Forms.Label; $labelVesselName.Text = "VESSEL NAME:"; $labelVesselName.Location = New-Object System.Drawing.Point(30, 85); $labelVesselName.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelVesselName.AutoSize = $true; $vmrForm.Controls.Add($labelVesselName)
     $vesselNameInput = New-Object System.Windows.Forms.TextBox; $vesselNameInput.Location = New-Object System.Drawing.Point(220, 85); $vesselNameInput.Size = New-Object System.Drawing.Size(350, 25); $vmrForm.Controls.Add($vesselNameInput)
     
-    $taconiteGroup = New-Object System.Windows.Forms.GroupBox; $taconiteGroup.Location = New-Object System.Drawing.Point(20, 130); $taconiteGroup.Size = New-Object System.Drawing.Size(580, 150); $taconiteGroup.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION TACONITE"; $taconiteGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($taconiteGroup)
+    $opTaconiteCheckbox = New-Object System.Windows.Forms.CheckBox; $opTaconiteCheckbox.Location = New-Object System.Drawing.Point(30, 130); $opTaconiteCheckbox.Size = New-Object System.Drawing.Size(21, 21); $vmrForm.Controls.Add($opTaconiteCheckbox)
+    $taconiteGroup = New-Object System.Windows.Forms.GroupBox; $taconiteGroup.Location = New-Object System.Drawing.Point(50, 120); $taconiteGroup.Size = New-Object System.Drawing.Size(550, 150); $taconiteGroup.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION TACONITE"; $taconiteGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($taconiteGroup)
     
     $labelArea = New-Object System.Windows.Forms.Label; $labelArea.Text = "AREA:"; $labelArea.Location = New-Object System.Drawing.Point(15, 40); $labelArea.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelArea.AutoSize = $true; $taconiteGroup.Controls.Add($labelArea)
-    $areaInput = New-Object System.Windows.Forms.TextBox; $areaInput.Location = New-Object System.Drawing.Point(200, 35); $areaInput.Size = New-Object System.Drawing.Size(350, 25); $areaInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconiteGroup.Controls.Add($areaInput)
+    $areaInput = New-Object System.Windows.Forms.TextBox; $areaInput.Location = New-Object System.Drawing.Point(170, 35); $areaInput.Size = New-Object System.Drawing.Size(360, 25); $areaInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconiteGroup.Controls.Add($areaInput)
 
     $labelReqDateTimeTaconite = New-Object System.Windows.Forms.Label; $labelReqDateTimeTaconite.Text = "REQUESTED DATE AND TIME FOR ASSISTANCE:"; $labelReqDateTimeTaconite.Location = New-Object System.Drawing.Point(15, 70); $labelReqDateTimeTaconite.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelReqDateTimeTaconite.AutoSize = $true; $taconiteGroup.Controls.Add($labelReqDateTimeTaconite)
-    $reqDateTimeTaconiteInput = New-Object System.Windows.Forms.TextBox; $reqDateTimeTaconiteInput.Location = New-Object System.Drawing.Point(340, 65); $reqDateTimeTaconiteInput.Size = New-Object System.Drawing.Size(210, 25); $reqDateTimeTaconiteInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconiteGroup.Controls.Add($reqDateTimeTaconiteInput)
+    $reqDateTimeTaconiteInput = New-Object System.Windows.Forms.TextBox; $reqDateTimeTaconiteInput.Location = New-Object System.Drawing.Point(340, 65); $reqDateTimeTaconiteInput.Size = New-Object System.Drawing.Size(190, 25); $reqDateTimeTaconiteInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconiteGroup.Controls.Add($reqDateTimeTaconiteInput)
 
-    $icebreakerCheckbox = New-Object System.Windows.Forms.CheckBox; $icebreakerCheckbox.Text = "IS ICE BREAKER ASSISTANCE REQUESTED"; $icebreakerCheckbox.Location = New-Object System.Drawing.Point(15, 105); $icebreakerCheckbox.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $icebreakerCheckbox.AutoSize = $true; $taconiteGroup.Controls.Add($icebreakerCheckbox)
+    $icebreakerCheckbox = New-Object System.Windows.Forms.CheckBox; $icebreakerCheckbox.Location = New-Object System.Drawing.Point(15, 105); $icebreakerCheckbox.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $icebreakerCheckbox.AutoSize = $true; $taconiteGroup.Controls.Add($icebreakerCheckbox)
+    $labelIcebreaker = New-Object System.Windows.Forms.Label; $labelIcebreaker.Text = "IS ICE BREAKER ASSISTANCE REQUESTED"; $labelIcebreaker.Location = New-Object System.Drawing.Point(35, 107); $labelIcebreaker.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelIcebreaker.AutoSize = $true; $taconiteGroup.Controls.Add($labelIcebreaker)
 
-    $coalShovelGroup = New-Object System.Windows.Forms.GroupBox; $coalShovelGroup.Location = New-Object System.Drawing.Point(20, 300); $coalShovelGroup.Size = New-Object System.Drawing.Size(580, 120); $coalShovelGroup.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION COAL SHOVEL"; $coalShovelGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($coalShovelGroup)
+    $opCoalShovelCheckbox = New-Object System.Windows.Forms.CheckBox; $opCoalShovelCheckbox.Location = New-Object System.Drawing.Point(30, 290); $opCoalShovelCheckbox.Size = New-Object System.Drawing.Size(21, 21); $vmrForm.Controls.Add($opCoalShovelCheckbox)
+    $coalShovelGroup = New-Object System.Windows.Forms.GroupBox; $coalShovelGroup.Location = New-Object System.Drawing.Point(50, 280); $coalShovelGroup.Size = New-Object System.Drawing.Size(550, 120); $coalShovelGroup.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION COAL SHOVEL"; $coalShovelGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($coalShovelGroup)
 
     $labelEtd = New-Object System.Windows.Forms.Label; $labelEtd.Text = "ETD FROM:"; $labelEtd.Location = New-Object System.Drawing.Point(15, 40); $labelEtd.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelEtd.AutoSize = $true; $coalShovelGroup.Controls.Add($labelEtd)
-    $etdInput = New-Object System.Windows.Forms.TextBox; $etdInput.Location = New-Object System.Drawing.Point(200, 35); $etdInput.Size = New-Object System.Drawing.Size(350, 25); $etdInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $coalShovelGroup.Controls.Add($etdInput)
+    $etdInput = New-Object System.Windows.Forms.TextBox; $etdInput.Location = New-Object System.Drawing.Point(200, 35); $etdInput.Size = New-Object System.Drawing.Size(330, 25); $etdInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $coalShovelGroup.Controls.Add($etdInput)
 
     $labelReqDateTimeCoal = New-Object System.Windows.Forms.Label; $labelReqDateTimeCoal.Text = "ON (DATE/TIME):"; $labelReqDateTimeCoal.Location = New-Object System.Drawing.Point(15, 70); $labelReqDateTimeCoal.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelReqDateTimeCoal.AutoSize = $true; $coalShovelGroup.Controls.Add($labelReqDateTimeCoal)
     $reqDateTimeCoalInput = New-Object System.Windows.Forms.TextBox; $reqDateTimeCoalInput.Location = New-Object System.Drawing.Point(200, 65); $reqDateTimeCoalInput.Size = New-Object System.Drawing.Size(200, 25); $reqDateTimeCoalInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $coalShovelGroup.Controls.Add($reqDateTimeCoalInput)
 
-    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(460, 440); $submitButton.Size = New-Object System.Drawing.Size(120, 40); $submitButton.Text = "SUBMIT"; $submitButton.BackColor = [System.Drawing.Color]::FromArgb(0, 122, 204); $submitButton.ForeColor = [System.Drawing.Color]::White; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($submitButton)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(20, 440); $backButton.Size = New-Object System.Drawing.Size(120, 40); $backButton.Text = "Back"; $backButton.DialogResult = 'Cancel'; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
+    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(460, 480); $submitButton.Size = New-Object System.Drawing.Size(120, 40); $submitButton.Text = "SUBMIT"; $submitButton.BackColor = [System.Drawing.Color]::FromArgb(0, 122, 204); $submitButton.ForeColor = [System.Drawing.Color]::White; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($submitButton)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(20, 480); $backButton.Size = New-Object System.Drawing.Size(120, 40); $backButton.Text = "Back"; $backButton.DialogResult = 'Cancel'; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
     
     $submitButton.Add_Click({
         $vmrData = @{
-            SubmissionDate = $submissionDatePicker.Value.ToString("yyyy-MM-dd")
+            FormSubmissionDate = $submissionDatePicker.Value.ToString("yyyy-MM-dd")
             VesselName = $vesselNameInput.Text
+            Taconite_Checked = $opTaconiteCheckbox.Checked
             Taconite_Area = $areaInput.Text
             Taconite_RequestedDateTime = $reqDateTimeTaconiteInput.Text
             Taconite_IcebreakerRequested = if ($icebreakerCheckbox.Checked) { "Yes" } else { "No" }
+            CoalShovel_Checked = $opCoalShovelCheckbox.Checked
             CoalShovel_EtdFrom = $etdInput.Text
             CoalShovel_RequestedDateTime = $reqDateTimeCoalInput.Text
         }
-        
         if ([string]::IsNullOrWhiteSpace($vmrData.VesselName)) { 
             [System.Windows.Forms.MessageBox]::Show("Vessel Name cannot be empty.", "Validation Error")
             return 
