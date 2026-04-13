@@ -93,57 +93,125 @@ function Save-CutterOperations($assignments) {
 
 # 4. GUI Screen Functions
 
+function Show-CutterMovements($parentForm, $currentUser) {
+    $cutterForm = New-Object System.Windows.Forms.Form; $cutterForm.Text = 'Taconite App - Cutter Movements'; $cutterForm.Size = New-Object System.Drawing.Size(1100, 820); $cutterForm.StartPosition = 'CenterScreen'; $cutterForm.BackColor = [System.Drawing.Color]::WhiteSmoke
+    $cutters = @("CGC MACKINAW", "CGC SPAR", "CGC KATMAI BAY", "CGC MOBILE BAY", "CGC BISCAYNE BAY", "CGC NEAH BAY", "CGC BRISTOL BAY"); $operations = @("Operation TACONITE", "Operation COAL SHOVEL"); $statusLabels = @{}; $updateInfoLabels = @{}
+    $mainPanel = New-Object System.Windows.Forms.Panel; $mainPanel.Location = New-Object System.Drawing.Point(20, 80); $mainPanel.Size = New-Object System.Drawing.Size(620, 680); $mainPanel.AutoScroll = $true; $cutterForm.Controls.Add($mainPanel)
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(1100, 40); $titleLabel.Text = "CUTTER MOVEMENTS"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 20, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $cutterForm.Controls.Add($titleLabel)
+    $updatePanel = New-Object System.Windows.Forms.Panel; $updatePanel.Location = New-Object System.Drawing.Point(660, 80); $updatePanel.Size = New-Object System.Drawing.Size(400, 130); $updatePanel.BackColor = [System.Drawing.Color]::FromArgb(230, 238, 250); $updatePanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle; $cutterForm.Controls.Add($updatePanel)
+    $updateTitle = New-Object System.Windows.Forms.Label; $updateTitle.Location = New-Object System.Drawing.Point(15, 15); $updateTitle.Size = New-Object System.Drawing.Size(200, 20); $updateTitle.Text = "Update Cutter Status"; $updateTitle.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $updatePanel.Controls.Add($updateTitle)
+    $vesselDropdownStatus = New-Object System.Windows.Forms.ComboBox; $vesselDropdownStatus.Location = New-Object System.Drawing.Point(15, 45); $vesselDropdownStatus.Size = New-Object System.Drawing.Size(200, 25); $vesselDropdownStatus.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $vesselDropdownStatus.Items.AddRange($cutters); $vesselDropdownStatus.SelectedIndex = 0; $updatePanel.Controls.Add($vesselDropdownStatus)
+    $statusInput = New-Object System.Windows.Forms.TextBox; $statusInput.Location = New-Object System.Drawing.Point(15, 80); $statusInput.Size = New-Object System.Drawing.Size(275, 25); $statusInput.ForeColor = [System.Drawing.Color]::Gray; $statusInput.Text = "Enter new status..."; $statusInput.Add_Enter({ if ($statusInput.Text -eq "Enter new status...") { $statusInput.Text = ""; $statusInput.ForeColor = [System.Drawing.Color]::Black } }); $statusInput.Add_Leave({ if ($statusInput.Text -eq "") { $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray } }); $updatePanel.Controls.Add($statusInput)
+    $updateBtn = New-Object System.Windows.Forms.Button; $updateBtn.Location = New-Object System.Drawing.Point(300, 78); $updateBtn.Size = New-Object System.Drawing.Size(80, 28); $updateBtn.Text = "Update"; $updateBtn.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold); $updateBtn.BackColor = [System.Drawing.Color]::SteelBlue; $updateBtn.ForeColor = [System.Drawing.Color]::White; $updatePanel.Controls.Add($updateBtn)
+    $assignPanel = New-Object System.Windows.Forms.Panel; $assignPanel.Location = New-Object System.Drawing.Point(660, 230); $assignPanel.Size = New-Object System.Drawing.Size(400, 130); $assignPanel.BackColor = [System.Drawing.Color]::FromArgb(250, 245, 230); $assignPanel.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle; $cutterForm.Controls.Add($assignPanel)
+    $assignTitle = New-Object System.Windows.Forms.Label; $assignTitle.Location = New-Object System.Drawing.Point(15, 15); $assignTitle.Size = New-Object System.Drawing.Size(250, 20); $assignTitle.Text = "Assign Cutter to Operation"; $assignTitle.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $assignPanel.Controls.Add($assignTitle)
+    $vesselDropdownAssign = New-Object System.Windows.Forms.ComboBox; $vesselDropdownAssign.Location = New-Object System.Drawing.Point(15, 45); $vesselDropdownAssign.Size = New-Object System.Drawing.Size(200, 25); $vesselDropdownAssign.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $vesselDropdownAssign.Items.AddRange($cutters); $vesselDropdownAssign.SelectedIndex = 0; $assignPanel.Controls.Add($vesselDropdownAssign)
+    $operationDropdown = New-Object System.Windows.Forms.ComboBox; $operationDropdown.Location = New-Object System.Drawing.Point(15, 80); $operationDropdown.Size = New-Object System.Drawing.Size(275, 25); $operationDropdown.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $operationDropdown.Items.AddRange($operations); $operationDropdown.SelectedIndex = 0; $assignPanel.Controls.Add($operationDropdown)
+    $assignBtn = New-Object System.Windows.Forms.Button; $assignBtn.Location = New-Object System.Drawing.Point(300, 78); $assignBtn.Size = New-Object System.Drawing.Size(80, 28); $assignBtn.Text = "Assign"; $assignBtn.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold); $assignBtn.BackColor = [System.Drawing.Color]::DarkGoldenrod; $assignBtn.ForeColor = [System.Drawing.Color]::White; $assignPanel.Controls.Add($assignBtn)
+    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(980, 380); $backButton.Size = New-Object System.Drawing.Size(80, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $cutterForm.CancelButton = $backButton; $cutterForm.Controls.Add($backButton)
+    $rebuildDisplay = {
+        $mainPanel.Controls.Clear(); $statusLabels.Clear(); $updateInfoLabels.Clear()
+        $currentStatuses = Get-CutterStatuses; $cutterAssignments = Get-CutterOperations; $currentY = 10
+        foreach ($operation in $operations) {
+            $headerLabel = New-Object System.Windows.Forms.Label; $headerLabel.Location = New-Object System.Drawing.Point(10, $currentY); $headerLabel.Size = New-Object System.Drawing.Size(580, 30); $headerLabel.Text = $operation.ToUpper(); $headerLabel.Font = New-Object System.Drawing.Font("Arial", 14, [System.Drawing.FontStyle]::Bold); $headerLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $headerLabel.BackColor = [System.Drawing.Color]::LightGray; $mainPanel.Controls.Add($headerLabel); $currentY += $headerLabel.Height + 5
+            $assignedCutters = $cutterAssignments.GetEnumerator() | Where-Object { $_.Value -eq $operation } | ForEach-Object { $_.Name } | Sort-Object
+            if ($assignedCutters) {
+                $headerPanel = New-Object System.Windows.Forms.Panel; $headerPanel.Location = New-Object System.Drawing.Point(10, $currentY); $headerPanel.Size = New-Object System.Drawing.Size(580, 25); $mainPanel.Controls.Add($headerPanel)
+                $headerName = New-Object System.Windows.Forms.Label; $headerName.Text = "Cutter"; $headerName.Location = New-Object System.Drawing.Point(10, 0); $headerName.Size = New-Object System.Drawing.Size(150, 25); $headerName.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerPanel.Controls.Add($headerName)
+                $headerUpdated = New-Object System.Windows.Forms.Label; $headerUpdated.Text = "Last Updated"; $headerUpdated.Location = New-Object System.Drawing.Point(190, 0); $headerUpdated.Size = New-Object System.Drawing.Size(160, 25); $headerUpdated.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerUpdated.TextAlign = "MiddleCenter"; $headerPanel.Controls.Add($headerUpdated)
+                $headerStatus = New-Object System.Windows.Forms.Label; $headerStatus.Text = "Movement / Status"; $headerStatus.Location = New-Object System.Drawing.Point(360, 0); $headerStatus.Size = New-Object System.Drawing.Size(210, 25); $headerStatus.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $headerPanel.Controls.Add($headerStatus)
+                $currentY += $headerPanel.Height
+                $i = 0
+                foreach ($cutterName in $assignedCutters) {
+                    $rowPanel = New-Object System.Windows.Forms.Panel; $rowPanel.Location = New-Object System.Drawing.Point(10, $currentY); $rowPanel.Size = New-Object System.Drawing.Size(580, 45); $rowPanel.BackColor = if ($i % 2 -eq 0) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(240,240,245) }; $mainPanel.Controls.Add($rowPanel)
+                    $nameLabel = New-Object System.Windows.Forms.Label; $nameLabel.Text = $cutterName; $nameLabel.Location = New-Object System.Drawing.Point(10, 10); $nameLabel.Size = New-Object System.Drawing.Size(170, 25); $nameLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $rowPanel.Controls.Add($nameLabel)
+                    $updateInfoLabel = New-Object System.Windows.Forms.Label; $updateInfoLabel.Location = New-Object System.Drawing.Point(190, 2); $updateInfoLabel.Size = New-Object System.Drawing.Size(160, 40); $updateInfoLabel.Font = New-Object System.Drawing.Font("Arial", 9); $updateInfoLabel.TextAlign = "MiddleCenter"; $rowPanel.Controls.Add($updateInfoLabel)
+                    $statusLabel = New-Object System.Windows.Forms.Label; $statusLabel.Location = New-Object System.Drawing.Point(360, 10); $statusLabel.Size = New-Object System.Drawing.Size(210, 25); $statusLabel.Font = New-Object System.Drawing.Font("Arial", 10); $rowPanel.Controls.Add($statusLabel)
+                    if ($currentStatuses.ContainsKey($cutterName)) { $statusData = $currentStatuses[$cutterName]; $statusLabel.Text = $statusData.Status; $updateInfoLabel.Text = "$($statusData.Timestamp)`n$($statusData.User)" } else { $statusLabel.Text = "No status reported"; $updateInfoLabel.Text = "N/A" }
+                    $statusLabels[$cutterName] = $statusLabel; $updateInfoLabels[$cutterName] = $updateInfoLabel; $currentY += $rowPanel.Height; $i++
+                }
+            } else { $noCutterLabel = New-Object System.Windows.Forms.Label; $noCutterLabel.Location = New-Object System.Drawing.Point(10, $currentY); $noCutterLabel.Size = New-Object System.Drawing.Size(580, 25); $noCutterLabel.Text = "No cutters assigned to this operation."; $noCutterLabel.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Italic); $noCutterLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $mainPanel.Controls.Add($noCutterLabel); $currentY += $noCutterLabel.Height }
+            $currentY += 20
+        }
+    }; $updateBtn.Add_Click({
+        $selectedVessel = $vesselDropdownStatus.SelectedItem.ToString(); $newStatus = $statusInput.Text.Trim()
+        if ([string]::IsNullOrWhiteSpace($newStatus) -or $newStatus -eq "Enter new status...") { [System.Windows.Forms.MessageBox]::Show("Please enter a status before updating.", "Missing Status"); return }
+        Save-CutterStatus $selectedVessel $newStatus $currentUser; Log-CutterUpdate $currentUser $selectedVessel $newStatus; $timestampForDisplay = Get-Date -Format "MM/dd/yy HH:mm"; $statusLabels[$selectedVessel].Text = $newStatus; $updateInfoLabels[$selectedVessel].Text = "$timestampForDisplay`n$currentUser"
+        $statusInput.Text = "Enter new status..."; $statusInput.ForeColor = [System.Drawing.Color]::Gray; [System.Windows.Forms.MessageBox]::Show("Status for $selectedVessel updated successfully!", "Status Updated")
+    }); $assignBtn.Add_Click({
+        $selectedVessel = $vesselDropdownAssign.SelectedItem.ToString(); $selectedOp = $operationDropdown.SelectedItem.ToString()
+        $assignments = Get-CutterOperations; $assignments[$selectedVessel] = $selectedOp; Save-CutterOperations $assignments
+        Log-OperationAssignment $currentUser $selectedVessel $selectedOp
+        [System.Windows.Forms.MessageBox]::Show("$selectedVessel has been assigned to $selectedOp.", "Assignment Updated"); &$rebuildDisplay
+    }); $cutterForm.Add_Load({ &$rebuildDisplay }); $cutterForm.ShowDialog()
+}
+
 function Show-VmrEntryForm($parentForm, $currentUser) {
     $vmrForm = New-Object System.Windows.Forms.Form
     $vmrForm.Text = 'Vessel Movement Request (VMR) Entry'
-    $vmrForm.Size = New-Object System.Drawing.Size(640, 580)
+    $vmrForm.Size = New-Object System.Drawing.Size(980, 520)
     $vmrForm.StartPosition = 'CenterScreen'
     $vmrForm.BackColor = [System.Drawing.Color]::White
 
-    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 10); $titleLabel.Size = New-Object System.Drawing.Size(640, 30); $titleLabel.Text = "VESSEL MOVEMENT REPORT (VMR)"; $titleLabel.Font = New-Object System.Drawing.Font("Times New Roman", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
+    # --- Header ---
+    $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 10); $titleLabel.Size = New-Object System.Drawing.Size(960, 30); $titleLabel.Text = "VESSEL MOVEMENT REPORT (VMR)"; $titleLabel.Font = New-Object System.Drawing.Font("Times New Roman", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
+    $dateLabel = New-Object System.Windows.Forms.Label; $dateLabel.Text = "DATE:"; $dateLabel.Location = New-Object System.Drawing.Point(20, 50); $dateLabel.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $dateLabel.AutoSize = $true; $vmrForm.Controls.Add($dateLabel)
+    $dateInput = New-Object System.Windows.Forms.TextBox; $dateInput.Location = New-Object System.Drawing.Point(80, 48); $dateInput.Size = New-Object System.Drawing.Size(120, 25); $dateInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $vmrForm.Controls.Add($dateInput)
+    $vesselLabel = New-Object System.Windows.Forms.Label; $vesselLabel.Text = "NAME OF VESSEL:"; $vesselLabel.Location = New-Object System.Drawing.Point(250, 50); $vesselLabel.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vesselLabel.AutoSize = $true; $vmrForm.Controls.Add($vesselLabel)
+    $vesselInput = New-Object System.Windows.Forms.TextBox; $vesselInput.Location = New-Object System.Drawing.Point(400, 48); $vesselInput.Size = New-Object System.Drawing.Size(540, 25); $vesselInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $vmrForm.Controls.Add($vesselInput)
 
-    $labelSubmissionDate = New-Object System.Windows.Forms.Label; $labelSubmissionDate.Text = "DATE OF SUBMISSION:"; $labelSubmissionDate.Location = New-Object System.Drawing.Point(30, 50); $labelSubmissionDate.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelSubmissionDate.AutoSize = $true; $vmrForm.Controls.Add($labelSubmissionDate)
-    $submissionDatePicker = New-Object System.Windows.Forms.DateTimePicker; $submissionDatePicker.Location = New-Object System.Drawing.Point(220, 50); $submissionDatePicker.Format = 'Short'; $submissionDatePicker.Size = New-Object System.Drawing.Size(120, 25); $vmrForm.Controls.Add($submissionDatePicker)
-
-    $labelVesselName = New-Object System.Windows.Forms.Label; $labelVesselName.Text = "VESSEL NAME:"; $labelVesselName.Location = New-Object System.Drawing.Point(30, 85); $labelVesselName.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelVesselName.AutoSize = $true; $vmrForm.Controls.Add($labelVesselName)
-    $vesselNameInput = New-Object System.Windows.Forms.TextBox; $vesselNameInput.Location = New-Object System.Drawing.Point(220, 85); $vesselNameInput.Size = New-Object System.Drawing.Size(350, 25); $vmrForm.Controls.Add($vesselNameInput)
+    # --- UPBOUND Section ---
+    $upboundGroup = New-Object System.Windows.Forms.GroupBox; $upboundGroup.Location = New-Object System.Drawing.Point(20, 90); $upboundGroup.Size = New-Object System.Drawing.Size(920, 150); $upboundGroup.Text = "UPBOUND LANSING SHOAL LT AND/OR ST. MARYS RIVER"; $upboundGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($upboundGroup)
     
-    $opTaconiteCheckbox = New-Object System.Windows.Forms.CheckBox; $opTaconiteCheckbox.Location = New-Object System.Drawing.Point(30, 130); $opTaconiteCheckbox.Size = New-Object System.Drawing.Size(21, 21); $vmrForm.Controls.Add($opTaconiteCheckbox)
-    $taconiteGroup = New-Object System.Windows.Forms.GroupBox; $taconiteGroup.Location = New-Object System.Drawing.Point(50, 120); $taconiteGroup.Size = New-Object System.Drawing.Size(550, 150); $taconiteGroup.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION TACONITE"; $taconiteGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($taconiteGroup)
+    $upboundTable = New-Object System.Windows.Forms.TableLayoutPanel; $upboundTable.Dock = 'Fill'; $upboundGroup.Controls.Add($upboundTable)
+    $upboundTable.ColumnCount = 15; $upboundTable.RowCount = 3
     
-    $labelArea = New-Object System.Windows.Forms.Label; $labelArea.Text = "AREA:"; $labelArea.Location = New-Object System.Drawing.Point(15, 40); $labelArea.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelArea.AutoSize = $true; $taconiteGroup.Controls.Add($labelArea)
-    $areaInput = New-Object System.Windows.Forms.TextBox; $areaInput.Location = New-Object System.Drawing.Point(170, 35); $areaInput.Size = New-Object System.Drawing.Size(360, 25); $areaInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconiteGroup.Controls.Add($areaInput)
+    $upboundLabels = @("TIME", "DATE", "LOCATION", "ETA", "DRAFT F/A", "BEAM", "AIR DRAFT", "DISPLACEMENT", "HP", "CLASS", "HULL", "BOW THRUSTER", "DEST", "CARGO", "REMARKS")
+    $columnWidths = @(60, 80, 120, 60, 60, 60, 60, 90, 60, 60, 60, 80, 100, 100, 120)
+    for ($i = 0; $i -lt $upboundLabels.Length; $i++) {
+        $upboundTable.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, $columnWidths[$i])))
+        $label = New-Object System.Windows.Forms.Label; $label.Text = $upboundLabels[$i]; $label.Font = New-Object System.Drawing.Font("Times New Roman", 8, [System.Drawing.FontStyle]::Bold); $label.TextAlign = "MiddleCenter"; $label.Dock = "Fill"; $upboundTable.Controls.Add($label, $i, 0)
+    }
 
-    $labelReqDateTimeTaconite = New-Object System.Windows.Forms.Label; $labelReqDateTimeTaconite.Text = "REQUESTED DATE AND TIME FOR ASSISTANCE:"; $labelReqDateTimeTaconite.Location = New-Object System.Drawing.Point(15, 70); $labelReqDateTimeTaconite.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelReqDateTimeTaconite.AutoSize = $true; $taconiteGroup.Controls.Add($labelReqDateTimeTaconite)
-    $reqDateTimeTaconiteInput = New-Object System.Windows.Forms.TextBox; $reqDateTimeTaconiteInput.Location = New-Object System.Drawing.Point(340, 65); $reqDateTimeTaconiteInput.Size = New-Object System.Drawing.Size(190, 25); $reqDateTimeTaconiteInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $taconiteGroup.Controls.Add($reqDateTimeTaconiteInput)
+    $upboundTextBoxes = @{}
+    for ($i = 0; $i -lt $upboundLabels.Length; $i++) {
+        $textBox = New-Object System.Windows.Forms.TextBox; $textBox.Dock = "Fill"; $textBox.Font = New-Object System.Drawing.Font("Times New Roman", 9); $upboundTable.Controls.Add($textBox, $i, 1); $upboundTextBoxes[$upboundLabels[$i]] = $textBox
+    }
 
-    $icebreakerCheckbox = New-Object System.Windows.Forms.CheckBox; $icebreakerCheckbox.Location = New-Object System.Drawing.Point(15, 105); $icebreakerCheckbox.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $icebreakerCheckbox.AutoSize = $true; $taconiteGroup.Controls.Add($icebreakerCheckbox)
-    $labelIcebreaker = New-Object System.Windows.Forms.Label; $labelIcebreaker.Text = "IS ICE BREAKER ASSISTANCE REQUESTED"; $labelIcebreaker.Location = New-Object System.Drawing.Point(35, 107); $labelIcebreaker.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelIcebreaker.AutoSize = $true; $taconiteGroup.Controls.Add($labelIcebreaker)
-
-    $opCoalShovelCheckbox = New-Object System.Windows.Forms.CheckBox; $opCoalShovelCheckbox.Location = New-Object System.Drawing.Point(30, 290); $opCoalShovelCheckbox.Size = New-Object System.Drawing.Size(21, 21); $vmrForm.Controls.Add($opCoalShovelCheckbox)
-    $coalShovelGroup = New-Object System.Windows.Forms.GroupBox; $coalShovelGroup.Location = New-Object System.Drawing.Point(50, 280); $coalShovelGroup.Size = New-Object System.Drawing.Size(550, 120); $coalShovelGroup.Text = "REQUEST FOR ICEBREAKER ASSISTANCE UNDER OPERATION COAL SHOVEL"; $coalShovelGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($coalShovelGroup)
-
-    $labelEtd = New-Object System.Windows.Forms.Label; $labelEtd.Text = "ETD FROM:"; $labelEtd.Location = New-Object System.Drawing.Point(15, 40); $labelEtd.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelEtd.AutoSize = $true; $coalShovelGroup.Controls.Add($labelEtd)
-    $etdInput = New-Object System.Windows.Forms.TextBox; $etdInput.Location = New-Object System.Drawing.Point(200, 35); $etdInput.Size = New-Object System.Drawing.Size(330, 25); $etdInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $coalShovelGroup.Controls.Add($etdInput)
-
-    $labelReqDateTimeCoal = New-Object System.Windows.Forms.Label; $labelReqDateTimeCoal.Text = "ON (DATE/TIME):"; $labelReqDateTimeCoal.Location = New-Object System.Drawing.Point(15, 70); $labelReqDateTimeCoal.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $labelReqDateTimeCoal.AutoSize = $true; $coalShovelGroup.Controls.Add($labelReqDateTimeCoal)
-    $reqDateTimeCoalInput = New-Object System.Windows.Forms.TextBox; $reqDateTimeCoalInput.Location = New-Object System.Drawing.Point(200, 65); $reqDateTimeCoalInput.Size = New-Object System.Drawing.Size(200, 25); $reqDateTimeCoalInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $coalShovelGroup.Controls.Add($reqDateTimeCoalInput)
-
-    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(460, 480); $submitButton.Size = New-Object System.Drawing.Size(120, 40); $submitButton.Text = "SUBMIT"; $submitButton.BackColor = [System.Drawing.Color]::FromArgb(0, 122, 204); $submitButton.ForeColor = [System.Drawing.Color]::White; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($submitButton)
-    $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(20, 480); $backButton.Size = New-Object System.Drawing.Size(120, 40); $backButton.Text = "Back"; $backButton.DialogResult = 'Cancel'; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
+    # --- DOWNBOUND Section ---
+    $downboundGroup = New-Object System.Windows.Forms.GroupBox; $downboundGroup.Location = New-Object System.Drawing.Point(20, 250); $downboundGroup.Size = New-Object System.Drawing.Size(920, 150); $downboundGroup.Text = "DOWNBOUND ST. MARYS RIVER AND/OR LANSING SHOAL LT"; $downboundGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($downboundGroup)
     
+    $downboundTable = New-Object System.Windows.Forms.TableLayoutPanel; $downboundTable.Dock = 'Fill'; $downboundGroup.Controls.Add($downboundTable)
+    $downboundTable.ColumnCount = 15; $downboundTable.RowCount = 3
+    
+    $downboundLabels = @("TIME", "DATE", "LOCATION", "ETA", "DRAFT F/A", "BEAM", "AIR DRAFT", "DISPLACEMENT", "HP", "CLASS", "HULL", "BOW THRUSTER", "DEST", "CARGO", "REMARKS")
+    for ($i = 0; $i -lt $downboundLabels.Length; $i++) {
+        $downboundTable.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, $columnWidths[$i])))
+        $label = New-Object System.Windows.Forms.Label; $label.Text = $downboundLabels[$i]; $label.Font = New-Object System.Drawing.Font("Times New Roman", 8, [System.Drawing.FontStyle]::Bold); $label.TextAlign = "MiddleCenter"; $label.Dock = "Fill"; $downboundTable.Controls.Add($label, $i, 0)
+    }
+
+    $downboundTextBoxes = @{}
+    for ($i = 0; $i -lt $downboundLabels.Length; $i++) {
+        $textBox = New-Object System.Windows.Forms.TextBox; $textBox.Dock = "Fill"; $textBox.Font = New-Object System.Drawing.Font("Times New Roman", 9); $downboundTable.Controls.Add($textBox, $i, 1); $downboundTextBoxes[$downboundLabels[$i]] = $textBox
+    }
+
+    # --- Icebreaker Request Section ---
+    $reqGroup = New-Object System.Windows.Forms.GroupBox; $reqGroup.Location = New-Object System.Drawing.Point(20, 410); $reqGroup.Size = New-Object System.Drawing.Size(920, 60); $reqGroup.Text = "REQUEST FOR ICEBREAKER ASSISTANCE"; $reqGroup.Font = New-Object System.Drawing.Font("Times New Roman", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($reqGroup)
+    $reqInput = New-Object System.Windows.Forms.TextBox; $reqInput.Location = New-Object System.Drawing.Point(15, 25); $reqInput.Size = New-Object System.Drawing.Size(890, 25); $reqInput.Font = New-Object System.Drawing.Font("Times New Roman", 10); $reqGroup.Controls.Add($reqInput)
+
+    # --- Submit Button ---
+    $submitButton = New-Object System.Windows.Forms.Button; $submitButton.Location = New-Object System.Drawing.Point(820, 480); $submitButton.Size = New-Object System.Drawing.Size(120, 40); $submitButton.Text = "SUBMIT"; $submitButton.BackColor = [System.Drawing.Color]::FromArgb(0, 122, 204); $submitButton.ForeColor = [System.Drawing.Color]::White; $submitButton.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold); $vmrForm.Controls.Add($submitButton)
+
     $submitButton.Add_Click({
         $vmrData = @{
-            FormSubmissionDate = $submissionDatePicker.Value.ToString("yyyy-MM-dd")
-            VesselName = $vesselNameInput.Text
-            Taconite_Checked = $opTaconiteCheckbox.Checked
-            Taconite_Area = $areaInput.Text
-            Taconite_RequestedDateTime = $reqDateTimeTaconiteInput.Text
-            Taconite_IcebreakerRequested = if ($icebreakerCheckbox.Checked) { "Yes" } else { "No" }
-            CoalShovel_Checked = $opCoalShovelCheckbox.Checked
-            CoalShovel_EtdFrom = $etdInput.Text
-            CoalShovel_RequestedDateTime = $reqDateTimeCoalInput.Text
+            SubmissionDate = $dateInput.Text
+            VesselName = $vesselInput.Text
+            Upbound = @{}; Downbound = @{}
+            IcebreakerRequest = $reqInput.Text
         }
+        foreach ($key in $upboundTextBoxes.Keys) { $vmrData.Upbound[$key] = $upboundTextBoxes[$key].Text }
+        foreach ($key in $downboundTextBoxes.Keys) { $vmrData.Downbound[$key] = $downboundTextBoxes[$key].Text }
+        
         if ([string]::IsNullOrWhiteSpace($vmrData.VesselName)) { 
             [System.Windows.Forms.MessageBox]::Show("Vessel Name cannot be empty.", "Validation Error")
             return 
@@ -153,7 +221,7 @@ function Show-VmrEntryForm($parentForm, $currentUser) {
         [System.Windows.Forms.MessageBox]::Show("VMR for $($vmrData.VesselName) has been successfully logged.", "Success")
         $vmrForm.Close()
     })
-    
+
     $vmrForm.ShowDialog()
 }
 
@@ -183,11 +251,13 @@ function Show-LoginForm {
             $tbdButton = New-Object System.Windows.Forms.Button; $tbdButton.Location = New-Object System.Drawing.Point(210,205); $tbdButton.Size = New-Object System.Drawing.Size(130,60); $tbdButton.Text = 'TBD'; $tbdButton.Font = New-Object System.Drawing.Font("Arial", 13, [System.Drawing.FontStyle]::Bold); $tbdButton.BackColor = [System.Drawing.Color]::IndianRed; $tbdButton.ForeColor = [System.Drawing.Color]::White; $tbdButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; $tbdButton.FlatAppearance.BorderSize = 0; $homeForm.Controls.Add($tbdButton)
             $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40,290); $divider2.Size = New-Object System.Drawing.Size(300,2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $homeForm.Controls.Add($divider2)
             $logoutButton = New-Object System.Windows.Forms.Button; $logoutButton.Location = New-Object System.Drawing.Point(140,310); $logoutButton.Size = New-Object System.Drawing.Size(100,35); $logoutButton.Text = 'Log Out'; $logoutButton.Font = New-Object System.Drawing.Font("Arial", 10); $logoutButton.BackColor = [System.Drawing.Color]::DimGray; $logoutButton.ForeColor = [System.Drawing.Color]::White; $logoutButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; $logoutButton.FlatAppearance.BorderSize = 0; $homeForm.Controls.Add($logoutButton)
+            
             $vmrButton.Add_Click({ Show-VmrEntryForm $homeForm $username });
             $cutterButton.Add_Click({ Show-CutterMovements $homeForm $username }); 
             $pocsButton.Add_Click({ Show-PocSelectionScreen $homeForm $username }); 
             $tbdButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("TBD clicked - feature coming soon!", "TBD") })
             $logoutButton.Add_Click({ Log-Attempt $username "" "LOGGED OUT"; $homeForm.Hide(); [System.Windows.Forms.MessageBox]::Show("You have successfully logged out.", "Logged Out"); $homeForm.Close(); Show-LoginForm }); 
+            
             $homeForm.ShowDialog(); $form.Close()
         } else { Log-Attempt $username $password "FAILED"; $statusLabel.Text = 'Invalid username or password.' }
     }); $createButton.Add_Click({
