@@ -1,6 +1,6 @@
 # TACONITE APP
 # Secure Mission Support Assistant - IL5 Optimized
-# Log in screen, Cutter Movements, POC Hours, and Vessel Movement Reports (VMR)
+# Functional: Login, Cutter Movements, POC Hours, and Vessel Movement Reports (VMR)
 
 # 1. Load Required .NET Assemblies
 Add-Type -AssemblyName System.Windows.Forms
@@ -17,6 +17,13 @@ $operationsFilePath = Join-Path $scriptPath "cutter_operations.txt"
 $pocHoursTaconitePath = Join-Path $scriptPath "poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = Join-Path $scriptPath "poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = Join-Path $scriptPath "CutterOperationUpdate_log.txt"
+$vmrUploadsPath = Join-Path $scriptPath "VMRs Uploaded"
+
+# New log paths for VMR entries
+$vmrTaconiteLogPath = Join-Path $scriptPath "VMR_entry_TACONITE.txt"
+$vmrCoalShovelLogPath = Join-Path $scriptPath "VMR_entry_COALSHOVEL.txt"
+
+if (-not (Test-Path $vmrUploadsPath)) { New-Item -ItemType Directory -Path $vmrUploadsPath | Out-Null }
 
 # 3. Foundational Functions
 function Get-Accounts {
@@ -35,6 +42,25 @@ function Log-CutterUpdate($username, $vessel, $newStatus) {
 
 function Log-OperationAssignment($username, $cutter, $operation) {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] User: $username | Assigned Cutter: $cutter to Operation: $operation"; Add-Content -Path $cutterOperationUpdateLogPath -Value $logEntry
+}
+
+# Logging function specifically for VMR entries
+function Log-VmrEntry {
+    param(
+        [string]$LogPath,
+        [string]$CurrentUser,
+        [string]$VesselName,
+        [string]$EventHeader,
+        [string]$EventDateTime,
+        [string]$IceBreaker,
+        [string]$Cargo,
+        [string]$Destination,
+        [string]$AdditionalInfo
+    )
+    $submissionTimestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    # Create a pipe-delimited string for consistency with other log files
+    $logEntry = "$submissionTimestamp|$CurrentUser|$VesselName|$EventHeader|$EventDateTime|$IceBreaker|$Cargo|$Destination|$AdditionalInfo"
+    Add-Content -Path $LogPath -Value $logEntry
 }
 
 function Save-PocHourEntry($username, $eventDate, $operation, $cutter, $hourType, $hours, [string]$location = "") {
@@ -132,15 +158,19 @@ function Show-VmrCenter($parentForm, $currentUser) {
     $viewSubmittedVmrButton = New-Object System.Windows.Forms.Button; $viewSubmittedVmrButton.Location = New-Object System.Drawing.Point(70, 170); $viewSubmittedVmrButton.Size = New-Object System.Drawing.Size(200, 50); $viewSubmittedVmrButton.Text = "View My Submitted VMRs"; $viewSubmittedVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $viewSubmittedVmrButton.BackColor = [System.Drawing.Color]::Firebrick; $viewSubmittedVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($viewSubmittedVmrButton)
     $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40, 320); $divider2.Size = New-Object System.Drawing.Size(260, 2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider2)
     $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(125, 340); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
-    $uploadVmrButton.Add_Click({ Show-VmrUploadScreen $vmrForm }); $viewSubmittedVmrButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("Feature coming soon!", "View Submitted VMRs") })
+    
+    # Pass the $currentUser to the VMR screen
+    $uploadVmrButton.Add_Click({ Show-VmrUploadScreen $vmrForm $currentUser })
+    $viewSubmittedVmrButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("Feature coming soon!", "View Submitted VMRs") })
+    
     $vmrForm.ShowDialog()
 }
 
 # FULL-SCREEN VMR ENTRY FUNCTION
-function Show-VmrUploadScreen($parentForm) {
+function Show-VmrUploadScreen($parentForm, $currentUser) {
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
-    $uploadForm.WindowState = 'Maximized' 
+    $uploadForm.WindowState = 'Maximized'
     $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
     # 1. Title Label
@@ -152,7 +182,7 @@ function Show-VmrUploadScreen($parentForm) {
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $uploadForm.Controls.Add($titleLabel)
 
-    # 2. Bottom Action Panel (Container for centered Submit and Back)
+    # 2. Bottom Action Panel
     $bottomPanel = New-Object System.Windows.Forms.Panel
     $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
     $bottomPanel.Height = 100
@@ -172,7 +202,7 @@ function Show-VmrUploadScreen($parentForm) {
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $bottomPanel.Controls.Add($backBtn)
 
-    # 3. TABLE CONTAINER (Responsive Padding)
+    # 3. TABLE CONTAINER
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
@@ -190,14 +220,14 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $vmrTable.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnEnter
-    $vmrTable.DefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
     
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
     $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
+    $vmrTable.DefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
     
     $vmrTable.ColumnHeadersHeight = 60 
-    $vmrTable.RowTemplate.Height = 100 # Adjusted Height to fill space
+    $vmrTable.RowTemplate.Height = 100 
     
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
@@ -207,7 +237,6 @@ function Show-VmrUploadScreen($parentForm) {
         "Additional information that may effect ETA or ETD"
     )
 
-    # COLUMN 0: VESSEL NAME (TextBox with SuggestAppend memory)
     $vesselCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
     $vesselCol.HeaderText = $headers[0]
     $vesselCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White
@@ -223,19 +252,12 @@ function Show-VmrUploadScreen($parentForm) {
         }
     }
 
-    $vmrTable.Columns[0].DividerWidth = 5
     $vmrTable.Columns[6].DividerWidth = 5
-    $vmrTable.Columns[10].DividerWidth = 5
     for ($i = 1; $i -le 10; $i++) { $vmrTable.Columns[$i].ReadOnly = $true }
     $vmrTable.RowCount = 6
-    
-    # Auto-Calculate row height to perfectly fill space
-    $availableHeight = $vmrTable.Height - $vmrTable.ColumnHeadersHeight
-    $vmrTable.Rows | ForEach-Object { $_.Height = ($availableHeight / 1.4) }
-
     $marginPanel.Controls.Add($vmrTable)
 
-    # 5. VESSEL AUTO-ENTRY LOGIC (POC STYLE)
+    # 5. VESSEL AUTO-ENTRY LOGIC
     $vesselList = New-Object System.Windows.Forms.AutoCompleteStringCollection
     $vesselList.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
 
@@ -306,21 +328,55 @@ function Show-VmrUploadScreen($parentForm) {
         }
     })
 
-    # DYNAMIC LAYOUT LOGIC FOR BUTTONS
+    # FINAL CENTERING LOGIC FOR BUTTONS
     $resizeControls = {
-        # 1. Center the Submit Button
         $submitX = ($bottomPanel.Width - $submitReportBtn.Width) / 2
         $submitY = ($bottomPanel.Height - $submitReportBtn.Height) / 2
         $submitReportBtn.Location = New-Object System.Drawing.Point($submitX, $submitY)
 
-        # 2. Place the Back Button to the right of the Submit button, with a 20px gap
         $backX = $submitReportBtn.Right + 20
         $backY = ($bottomPanel.Height - $backBtn.Height) / 2
         $backBtn.Location = New-Object System.Drawing.Point($backX, $backY)
     }
-    $uploadForm.Add_Resize($resizeControls); $uploadForm.Add_Shown($resizeControls)
+    $uploadForm.Add_Resize($resizeControls)
+    $uploadForm.Add_Shown($resizeControls)
 
-    $submitReportBtn.Add_Click({ [System.Windows.Forms.MessageBox]::Show("VMR Data Submitted Successfully.", "Submission Complete") })
+    # DATA SUBMISSION AND LOGGING
+    $submitReportBtn.Add_Click({
+        $entriesLogged = 0
+        foreach ($row in $vmrTable.Rows) {
+            $vesselName = if ($row.Cells[0].Value) { $row.Cells[0].Value.ToString() } else { "" }
+            if ([string]::IsNullOrWhiteSpace($vesselName)) { continue }
+
+            $iceBreaker = if ($row.Cells[11].Value) { $row.Cells[11].Value.ToString() } else { "N/A" }
+            $cargo = if ($row.Cells[12].Value) { $row.Cells[12].Value.ToString() } else { "N/A" }
+            $dest = if ($row.Cells[13].Value) { $row.Cells[13].Value.ToString() } else { "N/A" }
+            $addInfo = if ($row.Cells[14].Value) { $row.Cells[14].Value.ToString() } else { "N/A" }
+
+            # Loop through TACONITE columns (1-6)
+            for ($i = 1; $i -le 6; $i++) {
+                $cellValue = if ($row.Cells[$i].Value) { $row.Cells[$i].Value.ToString() } else { "" }
+                if (-not [string]::IsNullOrWhiteSpace($cellValue)) {
+                    Log-VmrEntry -LogPath $vmrTaconiteLogPath -CurrentUser $currentUser -VesselName $vesselName -EventHeader $vmrTable.Columns[$i].HeaderText -EventDateTime $cellValue -IceBreaker $iceBreaker -Cargo $cargo -Destination $dest -AdditionalInfo $addInfo
+                    $entriesLogged++
+                }
+            }
+
+            # Loop through COALSHOVEL columns (7-10)
+            for ($i = 7; $i -le 10; $i++) {
+                $cellValue = if ($row.Cells[$i].Value) { $row.Cells[$i].Value.ToString() } else { "" }
+                if (-not [string]::IsNullOrWhiteSpace($cellValue)) {
+                    Log-VmrEntry -LogPath $vmrCoalShovelLogPath -CurrentUser $currentUser -VesselName $vesselName -EventHeader $vmrTable.Columns[$i].HeaderText -EventDateTime $cellValue -IceBreaker $iceBreaker -Cargo $cargo -Destination $dest -AdditionalInfo $addInfo
+                    $entriesLogged++
+                }
+            }
+        }
+
+        [System.Windows.Forms.MessageBox]::Show("$entriesLogged VMR entries logged successfully.", "Submission Complete")
+        $vmrTable.Rows.Clear()
+        $vmrTable.RowCount = 6
+    })
+
     $uploadForm.ShowDialog()
 }
 
