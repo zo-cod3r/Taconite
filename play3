@@ -140,7 +140,6 @@ function Show-VmrCenter($parentForm, $currentUser) {
 }
 
 # FULL-SCREEN VMR ENTRY FUNCTION
-# FULL-SCREEN VMR ENTRY FUNCTION
 function Show-VmrUploadScreen($parentForm) {
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
@@ -221,14 +220,13 @@ function Show-VmrUploadScreen($parentForm) {
     $marginPanel.Controls.Add($vmrTable)
 
     # =========================================================================
-    # 5. CUSTOM DATE & TIME POPUP LOGIC
+    # 5. CUSTOM DATE & TIME POPUP LOGIC (WITH CLEAR BUTTON)
     # =========================================================================
     
-    # Function to build and show the custom Date/Time Picker Form
     function Get-CustomDateTime($initialDate) {
         $dtForm = New-Object System.Windows.Forms.Form
         $dtForm.Text = "Select Date and Time"
-        $dtForm.Size = New-Object System.Drawing.Size(260, 320)
+        $dtForm.Size = New-Object System.Drawing.Size(260, 360) # Increased height to fit Clear button
         $dtForm.StartPosition = "CenterParent"
         $dtForm.FormBorderStyle = 'FixedDialog'
         $dtForm.MaximizeBox = $false
@@ -282,14 +280,30 @@ function Show-VmrUploadScreen($parentForm) {
         $btnCancel.DialogResult = 'Cancel'
         $dtForm.Controls.Add($btnCancel)
 
+        # ADDED: Clear Button
+        $btnClear = New-Object System.Windows.Forms.Button
+        $btnClear.Text = "Clear"
+        $btnClear.Location = New-Object System.Drawing.Point(15, 270)
+        $btnClear.Size = New-Object System.Drawing.Size(210, 30)
+        $btnClear.BackColor = [System.Drawing.Color]::IndianRed
+        $btnClear.ForeColor = [System.Drawing.Color]::White
+        $btnClear.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
+        # Using 'Abort' as a secret code to tell the main function to wipe the cell
+        $btnClear.DialogResult = 'Abort' 
+        $dtForm.Controls.Add($btnClear)
+
         $dtForm.AcceptButton = $btnOk
         $dtForm.CancelButton = $btnCancel
 
-        if ($dtForm.ShowDialog($uploadForm) -eq 'OK') {
-            # Construct the final date/time string
+        $dialogResult = $dtForm.ShowDialog($uploadForm)
+
+        if ($dialogResult -eq 'OK') {
             $selectedDate = $calendar.SelectionStart.ToString("MM/dd/yyyy")
             $selectedTime = "$($cbHours.SelectedItem):$($cbMinutes.SelectedItem)"
             return "$selectedDate $selectedTime"
+        } elseif ($dialogResult -eq 'Abort') {
+            # Returned if they clicked "Clear"
+            return "CLEAR_CELL" 
         }
         return $null
     }
@@ -299,7 +313,6 @@ function Show-VmrUploadScreen($parentForm) {
         param($sender, $e)
         if ($e.RowIndex -ge 0 -and $e.ColumnIndex -ge 1 -and $e.ColumnIndex -le 10) {
             
-            # Check if there's already a date in the cell to prepopulate the popup
             $currentVal = $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value
             $parsedDate = $null
             if ([datetime]::TryParse($currentVal, [ref]$parsedDate)) {
@@ -311,8 +324,10 @@ function Show-VmrUploadScreen($parentForm) {
             # Call our custom popup form
             $result = Get-CustomDateTime -initialDate $initialDate
 
-            # If user clicked OK, update the cell
-            if ($result) {
+            # If user clicked "Clear", wipe the box. If "OK", put the date in.
+            if ($result -eq "CLEAR_CELL") {
+                $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value = ""
+            } elseif ($result) {
                 $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value = $result
             }
         }
@@ -329,7 +344,6 @@ function Show-VmrUploadScreen($parentForm) {
     $submitReportBtn.Add_Click({ [System.Windows.Forms.MessageBox]::Show("VMR Data Submitted Successfully.", "Submission Complete") })
     $uploadForm.ShowDialog()
 }
-
 
 
 
