@@ -175,7 +175,7 @@ function Show-VmrUploadScreen($parentForm) {
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $bottomPanel.Controls.Add($backBtn)
 
-    # 3. TABLE CONTAINER (Fixed Location logic)
+    # 3. TABLE CONTAINER
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
@@ -195,51 +195,79 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     
-    # Set header font, alignment, and WRAP MODE for long headers
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
     $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
     
-    $vmrTable.ColumnHeadersHeight = 60 # Taller to allow word wrapping
+    $vmrTable.ColumnHeadersHeight = 60 
     $vmrTable.RowTemplate.Height = 45 
     
     # Custom Headers
     $headers = @(
-        "Vessel Name",
-        "Eastbound at Lansing Shoal",
-        "Westbound Round Island",
-        "Upbound DeTour Reef Light",
-        "Downbound Whitefish Point",
-        "ETA to Sturgeon Bay",
-        "ETA to Rock Island Passage",
-        "Downbound ETA to LHC 11&12",
-        "Upbound ETA to SE Shoal or Detroit River Light",
-        "ETD from Lake Erie or Lake Huron Dock",
-        "ETD from Detroit/St. Clair River Dock",
-        "Ice Breaker Requested?",
-        "Type of Cargo",
-        "Dest.",
+        "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
+        "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
+        "Upbound ETA to SE Shoal or Detroit River Light", "ETD from Lake Erie or Lake Huron Dock",
+        "ETD from Detroit/St. Clair River Dock", "Ice Breaker Requested?", "Type of Cargo", "Dest.",
         "Additional information that may effect ETA or ETD"
     )
 
     for ($i = 0; $i -lt 15; $i++) {
         $vmrTable.Columns[$i].HeaderText = $headers[$i]
-
-        if ($i -ge 1 -and $i -le 10){
-		$vmrTable.Columns[$i].DefaultCellStyle.Format = "MM/dd/yyy HH:mm"
-		$vmrTable.Columns[$i].DefaultCellSytle.NullValue = "MM/DD/YYY HH:MM"
-		$vmrTable.Columns[$i].ToolTipText = "Enter Date and 24-Hour Time"
-	}
-
     }
 
-
-    $vmrTable.Columns[0].Dividerwidth = 5
-    $vmrTable.Columns[6].Dividerwidth = 5 
-    $vmrTable.Columns[10].Dividerwidth = 5
-
+    # Add thick vertical line after Rock Island Passage
+    $vmrTable.Columns[6].DividerWidth = 5
     $marginPanel.Controls.Add($vmrTable)
 
+    # =========================================================================
+    # 5. DYNAMIC DATE/TIME PICKER OVERLAY LOGIC
+    # =========================================================================
+    $dtPicker = New-Object System.Windows.Forms.DateTimePicker
+    $dtPicker.Format = [System.Windows.Forms.DateTimePickerFormat]::Custom
+    $dtPicker.CustomFormat = "MM/dd/yyyy HH:mm"
+    $dtPicker.Visible = $false
+    $vmrTable.Controls.Add($dtPicker)
+
+    # When a cell is clicked, move the picker over it if it's column 1-10
+    $vmrTable.Add_CellClick({
+        param($sender, $e)
+        if ($e.RowIndex -ge 0 -and $e.ColumnIndex -ge 1 -and $e.ColumnIndex -le 10) {
+            # Get the exact coordinates of the clicked cell
+            $rect = $vmrTable.GetCellDisplayRectangle($e.ColumnIndex, $e.RowIndex, $true)
+            $dtPicker.Size = New-Object System.Drawing.Size($rect.Width, $rect.Height)
+            $dtPicker.Location = New-Object System.Drawing.Point($rect.X, $rect.Y)
+            
+            # Load existing date if one is there, otherwise default to right now
+            $currentVal = $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value
+            $parsedDate = Get-Date
+            if ([datetime]::TryParse($currentVal, [ref]$parsedDate)) {
+                $dtPicker.Value = $parsedDate
+            } else {
+                $dtPicker.Value = Get-Date
+            }
+
+            $dtPicker.Visible = $true
+            $dtPicker.BringToFront()
+            $dtPicker.Focus()
+        } else {
+            $dtPicker.Visible = $false
+        }
+    })
+
+    # When a date is selected, push the text to the cell
+    $dtPicker.Add_ValueChanged({
+        if ($vmrTable.CurrentCell -ne $null) {
+            $vmrTable.CurrentCell.Value = $dtPicker.Value.ToString("MM/dd/yyyy HH:mm")
+        }
+    })
+
+    # Hide picker when user clicks away, calendar closes, or user scrolls
+    $dtPicker.Add_CloseUp({ $dtPicker.Visible = $false })
+    $dtPicker.Add_Leave({ $dtPicker.Visible = $false })
+    $vmrTable.Add_Scroll({ $dtPicker.Visible = $false })
+
+    # =========================================================================
+    
     # Function to keep Submit centered and Back button in bottom right
     $resizeControls = {
         $submitReportBtn.Location = New-Object System.Drawing.Point(($bottomPanel.Width - $submitReportBtn.Width) / 2, ($bottomPanel.Height - $submitReportBtn.Height) / 2)
@@ -250,6 +278,8 @@ function Show-VmrUploadScreen($parentForm) {
     $submitReportBtn.Add_Click({ [System.Windows.Forms.MessageBox]::Show("VMR Data Submitted Successfully.", "Submission Complete") })
     $uploadForm.ShowDialog()
 }
+
+
 
 function Show-PocSelectionScreen($parentForm, $currentUser) {
     $selectionForm = New-Object System.Windows.Forms.Form; $selectionForm.Text = 'Taconite App - Cutter POCs'; $selectionForm.Size = New-Object System.Drawing.Size(500, 380); $selectionForm.StartPosition = 'CenterScreen'; $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
