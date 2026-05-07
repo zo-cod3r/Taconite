@@ -17,6 +17,7 @@ $operationsFilePath = Join-Path $scriptPath "cutter_operations.txt"
 $pocHoursTaconitePath = Join-Path $scriptPath "poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = Join-Path $scriptPath "poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = Join-Path $scriptPath "CutterOperationUpdate_log.txt"
+
 # ADDED: New path for the VMR uploads folder
 $vmrUploadsPath = Join-Path $scriptPath "VMRs Uploaded"
 
@@ -25,8 +26,7 @@ if (-not (Test-Path $vmrUploadsPath)) {
     New-Item -ItemType Directory -Path $vmrUploadsPath | Out-Null
 }
 
-
-# 3. Foundational Functions 
+# 3. Foundational Functions
 function Get-Accounts {
     $accounts = @{}; if (Test-Path $accountsFilePath) { Get-Content $accountsFilePath | ForEach-Object { $parts = $_ -split "\|"; if ($parts.Length -eq 2) { $accounts[$parts[0].Trim()] = $parts[1].Trim() } } }; return $accounts
 }
@@ -60,6 +60,7 @@ function Get-PocHourEntries($operation) {
     if ($operation -eq "Operation TACONITE") { $pathsToRead += $pocHoursTaconitePath }
     elseif ($operation -eq "Operation COAL SHOVEL") { $pathsToRead += $pocHoursCoalShovelPath }
     elseif ($operation -eq "All Operations") { $pathsToRead += $pocHoursTaconitePath; $pathsToRead += $pocHoursCoalShovelPath }
+
     foreach ($path in $pathsToRead) {
         if (Test-Path $path) {
             Get-Content $path | ForEach-Object {
@@ -145,8 +146,8 @@ function Show-CutterMovements($parentForm, $currentUser) {
     }); $cutterForm.Add_Load({ &$rebuildDisplay }); $cutterForm.ShowDialog()
 }
 
+# UPDATED Show-VmrCenter FUNCTION
 function Show-VmrCenter($parentForm, $currentUser) {
-
     $vmrForm = New-Object System.Windows.Forms.Form
     $vmrForm.Text = 'VMR Center'
     $vmrForm.Size = New-Object System.Drawing.Size(340, 420)
@@ -156,30 +157,31 @@ function Show-VmrCenter($parentForm, $currentUser) {
     $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(340, 30); $titleLabel.Text = "VMR CENTER"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
 
     $divider1 = New-Object System.Windows.Forms.Panel; $divider1.Location = New-Object System.Drawing.Point(40, 60); $divider1.Size = New-Object System.Drawing.Size(260, 2); $divider1.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider1)
-    
+
     # MODIFIED: Text changed to "Submit a VMR"
     $uploadVmrButton = New-Object System.Windows.Forms.Button; $uploadVmrButton.Location = New-Object System.Drawing.Point(70, 90); $uploadVmrButton.Size = New-Object System.Drawing.Size(200, 50); $uploadVmrButton.Text = "Submit a VMR"; $uploadVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $uploadVmrButton.BackColor = [System.Drawing.Color]::SeaGreen; $uploadVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($uploadVmrButton)
-    
+
     # ADDED: New red button for "View My Submitted VMRs" (replaced the old Vessel Requests button)
     $viewSubmittedVmrButton = New-Object System.Windows.Forms.Button; $viewSubmittedVmrButton.Location = New-Object System.Drawing.Point(40, 170); $viewSubmittedVmrButton.Size = New-Object System.Drawing.Size(260, 120); $viewSubmittedVmrButton.Text = "View My Submitted VMRs"; $viewSubmittedVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $viewSubmittedVmrButton.BackColor = [System.Drawing.Color]::Firebrick; $viewSubmittedVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($viewSubmittedVmrButton)
-    
+
     $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40, 320); $divider2.Size = New-Object System.Drawing.Size(260, 2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider2)
-    
+
     $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(125, 340); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
-    
+
     # Button Actions
     $uploadVmrButton.Add_Click({ Show-VmrUploadScreen $vmrForm })
-    
+
     # TEMPORARY ACTION: Added a placeholder until we build the new screen
-    $viewSubmittedVmrButton.Add_Click({ 
-        [System.Windows.Forms.MessageBox]::Show("Feature coming soon!", "View Submitted VMRs") 
+    $viewSubmittedVmrButton.Add_Click({
+        [System.Windows.Forms.MessageBox]::Show("Feature coming soon!", "View Submitted VMRs")
     })
-    
+
     $vmrForm.ShowDialog()
 }
 
 
-ffunction Show-VmrUploadScreen($parentForm) {
+# UPDATED Show-VmrUploadScreen FUNCTION
+function Show-VmrUploadScreen($parentForm) {
     # 1. Initialize Full-Screen Form
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
@@ -200,7 +202,7 @@ ffunction Show-VmrUploadScreen($parentForm) {
     $vmrTable.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
     $vmrTable.Location = New-Object System.Drawing.Point(50, 110)
     $vmrTable.Size = New-Object System.Drawing.Size($uploadForm.Width - 100, $uploadForm.Height - 300)
-    
+
     # Configure Table Structure
     $vmrTable.ColumnCount = 15
     $vmrTable.RowCount = 6
@@ -209,7 +211,7 @@ ffunction Show-VmrUploadScreen($parentForm) {
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
     $vmrTable.DefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 10)
-    
+
     # Label columns generically (1-15) for now
     for ($i = 0; $i -lt 15; $i++) {
         $vmrTable.Columns[$i].HeaderText = "Col $($i + 1)"
@@ -249,7 +251,6 @@ ffunction Show-VmrUploadScreen($parentForm) {
 
     $uploadForm.ShowDialog()
 }
-
 
 function Show-PocSelectionScreen($parentForm, $currentUser) {
     $selectionForm = New-Object System.Windows.Forms.Form; $selectionForm.Text = 'Taconite App - Cutter POCs'; $selectionForm.Size = New-Object System.Drawing.Size(500, 380); $selectionForm.StartPosition = 'CenterScreen'; $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
