@@ -18,7 +18,6 @@ $pocHoursTaconitePath = Join-Path $scriptPath "poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = Join-Path $scriptPath "poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = Join-Path $scriptPath "CutterOperationUpdate_log.txt"
 
-
 # 3. Foundational Functions
 function Get-Accounts {
     $accounts = @{}; if (Test-Path $accountsFilePath) { Get-Content $accountsFilePath | ForEach-Object { $parts = $_ -split "\|"; if ($parts.Length -eq 2) { $accounts[$parts[0].Trim()] = $parts[1].Trim() } } }; return $accounts
@@ -224,7 +223,9 @@ function Show-VmrUploadScreen($parentForm) {
         }
     }
 
+    $vmrTable.Columns[0].DividerWidth = 5
     $vmrTable.Columns[6].DividerWidth = 5
+    $vmrTable.Columns[10].DividerWidth = 5
     for ($i = 1; $i -le 10; $i++) { $vmrTable.Columns[$i].ReadOnly = $true }
     $vmrTable.RowCount = 6
     
