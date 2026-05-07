@@ -1,4 +1,4 @@
-# [...](asc_slot://start-slot-1)TACONITE APP
+# TACONITE APP
 # Optimized for DoW mission support within IL5 environment.
 # Log in screen, Vessel Movements, POC Hours, and VMR Center.
 
@@ -175,7 +175,7 @@ function Show-VmrUploadScreen($parentForm) {
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $bottomPanel.Controls.Add($backBtn)
 
-    # 3. [...](asc_slot://start-slot-3)TABLE CONTAINER
+    # 3. TABLE CONTAINER
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
@@ -184,7 +184,7 @@ function Show-VmrUploadScreen($parentForm) {
     $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
     $uploadForm.Controls.Add($marginPanel)
 
-    # 4. [...](asc_slot://start-slot-5)Main Reporting Table
+    # 4. Main Reporting Table
     $vmrTable = New-Object System.Windows.Forms.DataGridView
     $vmrTable.Dock = [System.Windows.Forms.DockStyle]::Fill
     $vmrTable.AllowUserToAddRows = $false
@@ -201,6 +201,7 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.ColumnHeadersHeight = 60 
     $vmrTable.RowTemplate.Height = 45 
     
+    # Headers Array
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
         "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
@@ -209,18 +210,20 @@ function Show-VmrUploadScreen($parentForm) {
         "Additional information that may effect ETA or ETD"
     )
 
-    # [...](asc_slot://start-slot-7)Build columns
+    # Build columns
     # COLUMN 0: VESSEL NAME (COMBOBOX WITH AUTO-ENTRY)
     $vesselCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
     $vesselCol.HeaderText = $headers[0]
-    $vesselCol.FlatStyle = 'Flat'
+    $vesselCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White #<- FIX
     $vesselCol.Items.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
     $vmrTable.Columns.Add($vesselCol) | Out-Null
 
+    # Build the rest of the columns
     for ($i = 1; $i -lt 15; $i++) {
         if ($i -eq 11) {
             $comboCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
             $comboCol.HeaderText = $headers[$i]
+            $comboCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White #<- FIX
             $comboCol.Items.AddRange(@("Yes", "No"))
             $vmrTable.Columns.Add($comboCol) | Out-Null
         } else {
