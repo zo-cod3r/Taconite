@@ -17,9 +17,7 @@ $operationsFilePath = Join-Path $scriptPath "cutter_operations.txt"
 $pocHoursTaconitePath = Join-Path $scriptPath "poc_hours_taconite.txt"
 $pocHoursCoalShovelPath = Join-Path $scriptPath "poc_hours_coalshovel.txt"
 $cutterOperationUpdateLogPath = Join-Path $scriptPath "CutterOperationUpdate_log.txt"
-$vmrUploadsPath = Join-Path $scriptPath "VMRs Uploaded"
 
-if (-not (Test-Path $vmrUploadsPath)) { New-Item -ItemType Directory -Path $vmrUploadsPath | Out-Null }
 
 # 3. Foundational Functions
 function Get-Accounts {
