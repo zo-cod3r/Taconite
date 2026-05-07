@@ -1,6 +1,6 @@
 # TACONITE APP
-# Optimized for DoW mission support within IL5 environment.
-# Log in screen, Vessel Movements, POC Hours, and VMR Center.
+# Secure Mission Support Assistant - IL5 Optimized
+# Log in screen, Cutter Movements, POC Hours, and Vessel Movement Reports (VMR)
 
 # 1. Load Required .NET Assemblies
 Add-Type -AssemblyName System.Windows.Forms
@@ -143,7 +143,7 @@ function Show-VmrCenter($parentForm, $currentUser) {
 function Show-VmrUploadScreen($parentForm) {
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
-    $uploadForm.WindowState = 'Maximized'
+    $uploadForm.WindowState = 'Maximized' 
     $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
     # 1. Title Label
@@ -155,7 +155,7 @@ function Show-VmrUploadScreen($parentForm) {
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $uploadForm.Controls.Add($titleLabel)
 
-    # 2. Bottom Action Panel
+    # 2. Bottom Action Panel (Container for centered Submit and Back)
     $bottomPanel = New-Object System.Windows.Forms.Panel
     $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
     $bottomPanel.Height = 100
@@ -175,11 +175,11 @@ function Show-VmrUploadScreen($parentForm) {
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $bottomPanel.Controls.Add($backBtn)
 
-    # 3. TABLE CONTAINER
+    # 3. TABLE CONTAINER (Responsive Padding)
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
-    $marginPanel.Height = $uploadForm.Height - 180
+    $marginPanel.Height = $uploadForm.Height - 180 
     $marginPanel.Anchor = "Top, Bottom, Left, Right"
     $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
     $uploadForm.Controls.Add($marginPanel)
@@ -193,59 +193,56 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $vmrTable.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnEnter
-
+    
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
     $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
-
-    $vmrTable.ColumnHeadersHeight = 60
-    $vmrTable.RowTemplate.Height = 45
-
-    # Headers Array
+    
+    $vmrTable.ColumnHeadersHeight = 60 
+    $vmrTable.RowTemplate.Height = 100 # Adjusted Height to fill space
+    
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
-        "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
+        "DownboundWhitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
         "Upbound ETA to SE Shoal or Detroit River Light", "ETD from Lake Erie or Lake Huron Dock",
         "ETD from Detroit/St. Clair River Dock", "Ice Breaker Requested?", "Type of Cargo", "Dest.",
         "Additional information that may effect ETA or ETD"
     )
 
-    # Build the 15 columns dynamically
-    for ($i = 0; $i -lt 15; $i++) {
-        if ($i -eq 11) { # "Ice Breaker Requested?" Column
+    # COLUMN 0: VESSEL NAME (TextBox with SuggestAppend memory)
+    $vesselCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
+    $vesselCol.HeaderText = $headers[0]
+    $vesselCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White
+    $vmrTable.Columns.Add($vesselCol) | Out-Null
+
+    for ($i = 1; $i -lt 15; $i++) {
+        if ($i -eq 11) {
             $comboCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
-            $comboCol.HeaderText = $headers[$i]
-            $comboCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White
-            $comboCol.Items.AddRange(@("Yes", "No"))
-            $vmrTable.Columns.Add($comboCol) | Out-Null
-        } else { # All other columns are standard text
+            $comboCol.HeaderText = $headers[$i]; $comboCol.Items.AddRange(@("Yes", "No")); $comboCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White; $vmrTable.Columns.Add($comboCol) | Out-Null
+        } else {
             $textCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
-            $textCol.HeaderText = $headers[$i]
-            $vmrTable.Columns.Add($textCol) | Out-Null
+            $textCol.HeaderText = $headers[$i]; $vmrTable.Columns.Add($textCol) | Out-Null
         }
     }
 
-    # Add thick vertical line after Rock Island Passage (Index 6)
     $vmrTable.Columns[6].DividerWidth = 5
-
-    # Make the Date/Time columns (1-10) read-only so users MUST use the popup
-    for ($i = 1; $i -le 10; $i++) {
-        $vmrTable.Columns[$i].ReadOnly = $true
-    }
-
-    # Add 6 empty rows NOW that the columns actually exist
+    for ($i = 1; $i -le 10; $i++) { $vmrTable.Columns[$i].ReadOnly = $true }
     $vmrTable.RowCount = 6
+    
+    # Auto-Calculate row height to perfectly fill space
+    $availableHeight = $vmrTable.Height - $vmrTable.ColumnHeadersHeight
+    $vmrTable.Rows | ForEach-Object { $_.Height = ($availableHeight / 1.4) }
 
     $marginPanel.Controls.Add($vmrTable)
 
-    # 5. VESSEL AUTO-ENTRY LOGIC (POC STYLE - NO BLACK BOX)
+    # 5. VESSEL AUTO-ENTRY LOGIC (POC STYLE)
     $vesselList = New-Object System.Windows.Forms.AutoCompleteStringCollection
     $vesselList.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
 
     $vmrTable.Add_EditingControlShowing({
         param($sender, $e)
-        # Force the editing control to have a white background
         $e.Control.BackColor = [System.Drawing.Color]::White
+        $e.Control.ForeColor = [System.Drawing.Color]::Black
 
         if ($sender.CurrentCell.ColumnIndex -eq 0) {
             $textBox = $e.Control -as [System.Windows.Forms.TextBox]
@@ -270,47 +267,28 @@ function Show-VmrUploadScreen($parentForm) {
         }
     })
 
+    $vmrTable.Add_DataError({ param($sender, $e) $e.ThrowException = $false })
+
     # 6. CUSTOM DATE & TIME POPUP LOGIC
     function Get-CustomDateTime($initialDate) {
-        $dtForm = New-Object System.Windows.Forms.Form
-        $dtForm.Text = "Select Date and Time"
-        $dtForm.Size = New-Object System.Drawing.Size(260, 360) 
-        $dtForm.StartPosition = "CenterParent"
-        $dtForm.FormBorderStyle = 'FixedDialog'
-        $dtForm.MaximizeBox = $false; $dtForm.MinimizeBox = $false
-
-        $calendar = New-Object System.Windows.Forms.MonthCalendar
-        $calendar.Location = New-Object System.Drawing.Point(15, 15)
-        $calendar.MaxSelectionCount = 1
+        $dtForm = New-Object System.Windows.Forms.Form; $dtForm.Text = "Select Date and Time"; $dtForm.Size = New-Object System.Drawing.Size(260, 360); $dtForm.StartPosition = "CenterParent"; $dtForm.FormBorderStyle = 'FixedDialog'; $dtForm.MaximizeBox = $false; $dtForm.MinimizeBox = $false
+        $calendar = New-Object System.Windows.Forms.MonthCalendar; $calendar.Location = New-Object System.Drawing.Point(15, 15); $calendar.MaxSelectionCount = 1
         if ($initialDate) { $calendar.SetDate($initialDate) }
         $dtForm.Controls.Add($calendar)
-
-        $timeLabel = New-Object System.Windows.Forms.Label; $timeLabel.Text = "Time (24hr):"; $timeLabel.Location = New-Object System.Drawing.Point(15, 190); $timeLabel.Size = New-Object System.Drawing.Size(80, 20)
-        $dtForm.Controls.Add($timeLabel)
-
+        $timeLabel = New-Object System.Windows.Forms.Label; $timeLabel.Text = "Time (24hr):"; $timeLabel.Location = New-Object System.Drawing.Point(15, 190); $timeLabel.Size = New-Object System.Drawing.Size(80, 20); $dtForm.Controls.Add($timeLabel)
         $cbHours = New-Object System.Windows.Forms.ComboBox; $cbHours.Location = New-Object System.Drawing.Point(95, 187); $cbHours.Size = New-Object System.Drawing.Size(50, 20); $cbHours.DropDownStyle = 'DropDownList'
         for ($h = 0; $h -le 23; $h++) { $cbHours.Items.Add($h.ToString("00")) | Out-Null }
         $cbHours.SelectedItem = if ($initialDate) { $initialDate.ToString("HH") } else { "12" }
         $dtForm.Controls.Add($cbHours)
-
         $cbMinutes = New-Object System.Windows.Forms.ComboBox; $cbMinutes.Location = New-Object System.Drawing.Point(155, 187); $cbMinutes.Size = New-Object System.Drawing.Size(50, 20); $cbMinutes.DropDownStyle = 'DropDownList'
         for ($m = 0; $m -le 59; $m++) { $cbMinutes.Items.Add($m.ToString("00")) | Out-Null }
         $cbMinutes.SelectedItem = if ($initialDate) { $initialDate.ToString("mm") } else { "00" }
         $dtForm.Controls.Add($cbMinutes)
-
-        $btnOk = New-Object System.Windows.Forms.Button; $btnOk.Text = "OK"; $btnOk.Location = New-Object System.Drawing.Point(15, 230); $btnOk.Size = New-Object System.Drawing.Size(100, 30); $btnOk.DialogResult = 'OK'
-        $dtForm.Controls.Add($btnOk)
-
-        $btnCancel = New-Object System.Windows.Forms.Button; $btnCancel.Text = "Cancel"; $btnCancel.Location = New-Object System.Drawing.Point(125, 230); $btnCancel.Size = New-Object System.Drawing.Size(100, 30); $btnCancel.DialogResult = 'Cancel'
-        $dtForm.Controls.Add($btnCancel)
-
-        $btnClear = New-Object System.Windows.Forms.Button; $btnClear.Text = "Clear"; $btnClear.Location = New-Object System.Drawing.Point(15, 270); $btnClear.Size = New-Object System.Drawing.Size(210, 30); $btnClear.BackColor = [System.Drawing.Color]::IndianRed; $btnClear.ForeColor = [System.Drawing.Color]::White; $btnClear.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $btnClear.DialogResult = 'Abort' 
-        $dtForm.Controls.Add($btnClear)
-
+        $btnOk = New-Object System.Windows.Forms.Button; $btnOk.Text = "OK"; $btnOk.Location = New-Object System.Drawing.Point(15, 230); $btnOk.Size = New-Object System.Drawing.Size(100, 30); $btnOk.DialogResult = 'OK'; $dtForm.Controls.Add($btnOk)
+        $btnCancel = New-Object System.Windows.Forms.Button; $btnCancel.Text = "Cancel"; $btnCancel.Location = New-Object System.Drawing.Point(125, 230); $btnCancel.Size = New-Object System.Drawing.Size(100, 30); $btnCancel.DialogResult = 'Cancel'; $dtForm.Controls.Add($btnCancel)
+        $btnClear = New-Object System.Windows.Forms.Button; $btnClear.Text = "Clear"; $btnClear.Location = New-Object System.Drawing.Point(15, 270); $btnClear.Size = New-Object System.Drawing.Size(210, 30); $btnClear.BackColor = [System.Drawing.Color]::IndianRed; $btnClear.ForeColor = [System.Drawing.Color]::White; $btnClear.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $btnClear.DialogResult = 'Abort'; $dtForm.Controls.Add($btnClear)
         $dtForm.AcceptButton = $btnOk; $dtForm.CancelButton = $btnCancel
-
         $dialogResult = $dtForm.ShowDialog($uploadForm)
-
         if ($dialogResult -eq 'OK') { return "$($calendar.SelectionStart.ToString("MM/dd/yyyy")) $($cbHours.SelectedItem):$($cbMinutes.SelectedItem)" } 
         elseif ($dialogResult -eq 'Abort') { return "CLEAR_CELL" }
         return $null
@@ -328,10 +306,17 @@ function Show-VmrUploadScreen($parentForm) {
         }
     })
 
-    # Function to keep Submit centered and Back button in bottom right
+    # DYNAMIC LAYOUT LOGIC FOR BUTTONS
     $resizeControls = {
-        $submitReportBtn.Location = New-Object System.Drawing.Point(($bottomPanel.Width - $submitReportBtn.Width) / 2, ($bottomPanel.Height - $submitReportBtn.Height) / 2)
-        $backBtn.Location = New-Object System.Drawing.Point($bottomPanel.Width - $backBtn.Width - 50, ($bottomPanel.Height - $backBtn.Height) / 2)
+        # 1. Center the Submit Button
+        $submitX = ($bottomPanel.Width - $submitReportBtn.Width) / 2
+        $submitY = ($bottomPanel.Height - $submitReportBtn.Height) / 2
+        $submitReportBtn.Location = New-Object System.Drawing.Point($submitX, $submitY)
+
+        # 2. Place the Back Button to the right of the Submit button, with a 20px gap
+        $backX = $submitReportBtn.Right + 20
+        $backY = ($bottomPanel.Height - $backBtn.Height) / 2
+        $backBtn.Location = New-Object System.Drawing.Point($backX, $backY)
     }
     $uploadForm.Add_Resize($resizeControls); $uploadForm.Add_Shown($resizeControls)
 
