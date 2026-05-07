@@ -209,7 +209,7 @@ function Show-VmrUploadScreen($parentForm) {
         "Eastbound at Lansing Shoal",
         "Westbound Round Island",
         "Upbound DeTour Reef Light",
-        "DownboundWhitefish Point",
+        "Downbound Whitefish Point",
         "ETA to Sturgeon Bay",
         "ETA to Rock Island Passage",
         "Downbound ETA to LHC 11&12",
@@ -224,7 +224,19 @@ function Show-VmrUploadScreen($parentForm) {
 
     for ($i = 0; $i -lt 15; $i++) {
         $vmrTable.Columns[$i].HeaderText = $headers[$i]
+
+        if ($i -ge 1 -and $i -le 10){
+		$vmrTable.Columns[$i].DefaultCellStyle.Format = "MM/dd/yyy HH:mm"
+		$vmrTable.Columns[$i].DefaultCellSytle.NullValue = "MM/DD/YYY HH:MM"
+		$vmrTable.Columns[$i].ToolTipText = "Enter Date and 24-Hour Time"
+	}
+
     }
+
+
+    $vmrTable.Columns[0].Dividerwidth = 5
+    $vmrTable.Columns[6].Dividerwidth = 5 
+    $vmrTable.Columns[10].Dividerwidth = 5
 
     $marginPanel.Controls.Add($vmrTable)
 
