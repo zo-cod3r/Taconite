@@ -139,7 +139,7 @@ function Show-VmrCenter($parentForm, $currentUser) {
     $vmrForm.ShowDialog()
 }
 
-# FULL-SCREEN VMR ENTRY FUNCTION (REFACTORED FOR VISIBILITY)
+# FULL-SCREEN VMR ENTRY FUNCTION
 function Show-VmrUploadScreen($parentForm) {
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
@@ -175,11 +175,11 @@ function Show-VmrUploadScreen($parentForm) {
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $bottomPanel.Controls.Add($backBtn)
 
-    # 3. TABLE CONTAINER (Fixed Location logic to avoid sliding under title)
+    # 3. TABLE CONTAINER (Fixed Location logic)
     $marginPanel = New-Object System.Windows.Forms.Panel
-    $marginPanel.Location = New-Object System.Drawing.Point(0, 80) # Starts immediately after title
+    $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
-    $marginPanel.Height = $uploadForm.Height - 180 # Calculated: Form - Title(80) - Bottom(100)
+    $marginPanel.Height = $uploadForm.Height - 180 
     $marginPanel.Anchor = "Top, Bottom, Left, Right"
     $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
     $uploadForm.Controls.Add($marginPanel)
@@ -194,12 +194,38 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.BackgroundColor = [System.Drawing.Color]::White
     $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
+    
+    # Set header font, alignment, and WRAP MODE for long headers
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
-    $vmrTable.ColumnHeadersHeight = 35
+    $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
+    $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
+    
+    $vmrTable.ColumnHeadersHeight = 60 # Taller to allow word wrapping
     $vmrTable.RowTemplate.Height = 45 
     
-    $vmrTable.Columns[0].HeaderText = "Vessel Name"
-    for ($i = 1; $i -lt 15; $i++) { $vmrTable.Columns[$i].HeaderText = "Col $($i + 1)" }
+    # Custom Headers
+    $headers = @(
+        "Vessel Name",
+        "Eastbound at Lansing Shoal",
+        "Westbound Round Island",
+        "Upbound DeTour Reef Light",
+        "DownboundWhitefish Point",
+        "ETA to Sturgeon Bay",
+        "ETA to Rock Island Passage",
+        "Downbound ETA to LHC 11&12",
+        "Upbound ETA to SE Shoal or Detroit River Light",
+        "ETD from Lake Erie or Lake Huron Dock",
+        "ETD from Detroit/St. Clair River Dock",
+        "Ice Breaker Requested?",
+        "Type of Cargo",
+        "Dest.",
+        "Additional information that may effect ETA or ETD"
+    )
+
+    for ($i = 0; $i -lt 15; $i++) {
+        $vmrTable.Columns[$i].HeaderText = $headers[$i]
+    }
+
     $marginPanel.Controls.Add($vmrTable)
 
     # Function to keep Submit centered and Back button in bottom right
