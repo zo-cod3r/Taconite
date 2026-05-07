@@ -149,6 +149,7 @@ function Show-VmrUploadScreen($parentForm) {
     $uploadForm.WindowState = 'Maximized' 
     $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
+    # 1. Title Label
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Dock = [System.Windows.Forms.DockStyle]::Top
     $titleLabel.Height = 80
@@ -157,25 +158,27 @@ function Show-VmrUploadScreen($parentForm) {
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $uploadForm.Controls.Add($titleLabel)
 
-    $bottomPanel = New-Object System.Windows.Forms.Panel
-    $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
-    $bottomPanel.Height = 100
-    $uploadForm.Controls.Add($bottomPanel)
-
+    # =========================================================================
+    # 2. ACTION BUTTONS (Placed directly on form for perfect centering)
+    # =========================================================================
+    
     $submitReportBtn = New-Object System.Windows.Forms.Button
     $submitReportBtn.Text = "Submit Report"
     $submitReportBtn.Size = New-Object System.Drawing.Size(200, 50)
     $submitReportBtn.BackColor = [System.Drawing.Color]::SeaGreen
     $submitReportBtn.ForeColor = [System.Drawing.Color]::White
     $submitReportBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $bottomPanel.Controls.Add($submitReportBtn)
+    $submitReportBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom
+    $uploadForm.Controls.Add($submitReportBtn)
 
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "Back"
     $backBtn.Size = New-Object System.Drawing.Size(100, 40)
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $bottomPanel.Controls.Add($backBtn)
+    $backBtn.Anchor = ([System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right)
+    $uploadForm.Controls.Add($backBtn)
 
+    # 3. TABLE CONTAINER (No bottom panel, giving more room to the table)
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
@@ -184,6 +187,7 @@ function Show-VmrUploadScreen($parentForm) {
     $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
     $uploadForm.Controls.Add($marginPanel)
 
+    # 4. Main Reporting Table
     $vmrTable = New-Object System.Windows.Forms.DataGridView
     $vmrTable.Dock = [System.Windows.Forms.DockStyle]::Fill
     $vmrTable.AllowUserToAddRows = $false
@@ -202,7 +206,7 @@ function Show-VmrUploadScreen($parentForm) {
     
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
-        "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
+        "DownboundWhitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
         "Upbound ETA to SE Shoal or Detroit River Light", "ETD from Lake Erie or Lake Huron Dock",
         "ETD from Detroit/St. Clair River Dock", "Ice Breaker Requested?", "Type of Cargo", "Dest.",
         "Additional information that may effect ETA or ETD"
@@ -231,8 +235,6 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.Columns[6].DividerWidth = 5
     for ($i = 1; $i -le 10; $i++) { $vmrTable.Columns[$i].ReadOnly = $true }
     $vmrTable.RowCount = 6
-    $availableHeight = $vmrTable.Height - $vmrTable.ColumnHeadersHeight
-    $vmrTable.Rows | ForEach-Object { $_.Height = ($availableHeight/1.4) }
     $marginPanel.Controls.Add($vmrTable)
 
     # VESSEL AUTO-ENTRY LOGIC (POC STYLE)
@@ -306,10 +308,19 @@ function Show-VmrUploadScreen($parentForm) {
         }
     })
 
-    # DYNAMIC LAYOUT LOGIC
+    # =========================================================================
+    # FIXED CENTERING LOGIC FOR BUTTONS
+    # =========================================================================
     $resizeControls = {
-        $submitReportBtn.Location = New-Object System.Drawing.Point(($bottomPanel.Width - $submitReportBtn.Width) / 2, ($bottomPanel.Height - $submitReportBtn.Height) / 2)
-        $backBtn.Location = New-Object System.Drawing.Point($bottomPanel.Width - $backBtn.Width - 50, ($bottomPanel.Height - $backBtn.Height) / 2)
+        # 1. Calculate perfect center X for the Submit Button
+        $submitX = ($uploadForm.ClientSize.Width - $submitReportBtn.Width) / 2
+        # 2. Place it 30 pixels from the bottom of the screen
+        $submitY = $uploadForm.ClientSize.Height - $submitReportBtn.Height - 30 
+        $submitReportBtn.Location = New-Object System.Drawing.Point($submitX, $submitY)
+
+        # 3. Place Back button 50 pixels from the right edge, matching the Y of Submit
+        $backY = $uploadForm.ClientSize.Height - $backBtn.Height - 30
+        $backBtn.Location = New-Object System.Drawing.Point($uploadForm.ClientSize.Width - $backBtn.Width - 50, $backY)
     }
     $uploadForm.Add_Resize($resizeControls); $uploadForm.Add_Shown($resizeControls)
 
