@@ -193,6 +193,7 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $vmrTable.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnEnter
+    $vmrTable.DefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
     
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
@@ -203,7 +204,7 @@ function Show-VmrUploadScreen($parentForm) {
     
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
-        "DownboundWhitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
+        "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
         "Upbound ETA to SE Shoal or Detroit River Light", "ETD from Lake Erie or Lake Huron Dock",
         "ETD from Detroit/St. Clair River Dock", "Ice Breaker Requested?", "Type of Cargo", "Dest.",
         "Additional information that may effect ETA or ETD"
