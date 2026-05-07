@@ -1,6 +1,6 @@
-# TACONITE APP
-# Log in screen, Vessel inChop, Hours tracking
-# Still developing VMR input and tracking
+# [...](asc_slot://start-slot-1)TACONITE APP
+# Optimized for DoW mission support within IL5 environment.
+# Log in screen, Vessel Movements, POC Hours, and VMR Center.
 
 # 1. Load Required .NET Assemblies
 Add-Type -AssemblyName System.Windows.Forms
@@ -175,7 +175,7 @@ function Show-VmrUploadScreen($parentForm) {
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $bottomPanel.Controls.Add($backBtn)
 
-    # 3. TABLE CONTAINER
+    # 3. [...](asc_slot://start-slot-3)TABLE CONTAINER
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
@@ -184,7 +184,7 @@ function Show-VmrUploadScreen($parentForm) {
     $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
     $uploadForm.Controls.Add($marginPanel)
 
-    # 4. Main Reporting Table
+    # 4. [...](asc_slot://start-slot-5)Main Reporting Table
     $vmrTable = New-Object System.Windows.Forms.DataGridView
     $vmrTable.Dock = [System.Windows.Forms.DockStyle]::Fill
     $vmrTable.AllowUserToAddRows = $false
@@ -201,7 +201,6 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.ColumnHeadersHeight = 60 
     $vmrTable.RowTemplate.Height = 45 
     
-    # Custom Headers
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
         "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
@@ -210,221 +209,14 @@ function Show-VmrUploadScreen($parentForm) {
         "Additional information that may effect ETA or ETD"
     )
 
-    # Build columns
-    for ($i = 0; $i -lt 15; $i++) {
-        if ($i -eq 11) {
-            $comboCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
-            $comboCol.HeaderText = $headers[$i]
-            $comboCol.Items.Add("Yes") | Out-Null
-            $comboCol.Items.Add("No") | Out-Null
-            $vmrTable.Columns.Add($comboCol) | Out-Null
-        } else {
-            $textCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
-            $textCol.HeaderText = $headers[$i]
-            $vmrTable.Columns.Add($textCol) | Out-Null
-        }
-    }
-
-    $vmrTable.Columns[6].DividerWidth = 5
-
-    # Make Date/Time columns read-only
-    for ($i = 1; $i -le 10; $i++) { $vmrTable.Columns[$i].ReadOnly = $true }
-
-    $vmrTable.RowCount = 6
-    $marginPanel.Controls.Add($vmrTable)
-
-    # =========================================================================
-    # 5. AUTO-COMPLETE LOGIC FOR VESSEL NAME (COLUMN 0)
-    # =========================================================================
-    
-    # Create the memory bank for vessel names
-    $vesselAutoCompleteList = New-Object System.Windows.Forms.AutoCompleteStringCollection
-    $vesselAutoCompleteList.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
-
-    # When the user starts typing, attach the auto-complete memory to the textbox
-    $vmrTable.Add_EditingControlShowing({
-        param($sender, $e)
-        if ($sender.CurrentCell.ColumnIndex -eq 0) {
-            $textBox = $e.Control -as [System.Windows.Forms.TextBox]
-            if ($textBox) {
-                $textBox.AutoCompleteMode = [System.Windows.Forms.AutoCompleteMode]::SuggestAppend
-                $textBox.AutoCompleteSource = [System.Windows.Forms.AutoCompleteSource]::CustomSource
-                $textBox.AutoCompleteCustomSource = $vesselAutoCompleteList
-            }
-        } else {
-            # Turn auto-complete off for other text columns like Cargo and Dest
-            $textBox = $e.Control -as [System.Windows.Forms.TextBox]
-            if ($textBox) { $textBox.AutoCompleteMode = [System.Windows.Forms.AutoCompleteMode]::None }
-        }
-    })
-
-    # When the user finishes typing, check if it's a new vessel and learn it
-    $vmrTable.Add_CellEndEdit({
-        param($sender, $e)
-        if ($e.ColumnIndex -eq 0) {
-            $cellValue = $sender.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value
-            if (-not [string]::IsNullOrWhiteSpace($cellValue) -and -not $vesselAutoCompleteList.Contains($cellValue)) {
-                $vesselAutoCompleteList.Add($cellValue) | Out-Null
-            }
-        }
-    })
-
-    # =========================================================================
-    # 6. CUSTOM DATE & TIME POPUP LOGIC (WITH CLEAR BUTTON)
-    # =========================================================================
-    
-    function Get-CustomDateTime($initialDate) {
-        $dtForm = New-Object System.Windows.Forms.Form
-        $dtForm.Text = "Select Date and Time"
-        $dtForm.Size = New-Object System.Drawing.Size(260, 360) 
-        $dtForm.StartPosition = "CenterParent"
-        $dtForm.FormBorderStyle = 'FixedDialog'
-        $dtForm.MaximizeBox = $false; $dtForm.MinimizeBox = $false
-
-        $calendar = New-Object System.Windows.Forms.MonthCalendar
-        $calendar.Location = New-Object System.Drawing.Point(15, 15)
-        $calendar.MaxSelectionCount = 1
-        if ($initialDate) { $calendar.SetDate($initialDate) }
-        $dtForm.Controls.Add($calendar)
-
-        $timeLabel = New-Object System.Windows.Forms.Label; $timeLabel.Text = "Time (24hr):"; $timeLabel.Location = New-Object System.Drawing.Point(15, 190); $timeLabel.Size = New-Object System.Drawing.Size(80, 20)
-        $dtForm.Controls.Add($timeLabel)
-
-        $cbHours = New-Object System.Windows.Forms.ComboBox; $cbHours.Location = New-Object System.Drawing.Point(95, 187); $cbHours.Size = New-Object System.Drawing.Size(50, 20); $cbHours.DropDownStyle = 'DropDownList'
-        for ($h = 0; $h -le 23; $h++) { $cbHours.Items.Add($h.ToString("00")) | Out-Null }
-        $cbHours.SelectedItem = if ($initialDate) { $initialDate.ToString("HH") } else { "12" }
-        $dtForm.Controls.Add($cbHours)
-
-        $cbMinutes = New-Object System.Windows.Forms.ComboBox; $cbMinutes.Location = New-Object System.Drawing.Point(155, 187); $cbMinutes.Size = New-Object System.Drawing.Size(50, 20); $cbMinutes.DropDownStyle = 'DropDownList'
-        for ($m = 0; $m -le 59; $m++) { $cbMinutes.Items.Add($m.ToString("00")) | Out-Null }
-        $cbMinutes.SelectedItem = if ($initialDate) { $initialDate.ToString("mm") } else { "00" }
-        $dtForm.Controls.Add($cbMinutes)
-
-        $btnOk = New-Object System.Windows.Forms.Button; $btnOk.Text = "OK"; $btnOk.Location = New-Object System.Drawing.Point(15, 230); $btnOk.Size = New-Object System.Drawing.Size(100, 30); $btnOk.DialogResult = 'OK'
-        $dtForm.Controls.Add($btnOk)
-
-        $btnCancel = New-Object System.Windows.Forms.Button; $btnCancel.Text = "Cancel"; $btnCancel.Location = New-Object System.Drawing.Point(125, 230); $btnCancel.Size = New-Object System.Drawing.Size(100, 30); $btnCancel.DialogResult = 'Cancel'
-        $dtForm.Controls.Add($btnCancel)
-
-        $btnClear = New-Object System.Windows.Forms.Button; $btnClear.Text = "Clear"; $btnClear.Location = New-Object System.Drawing.Point(15, 270); $btnClear.Size = New-Object System.Drawing.Size(210, 30); $btnClear.BackColor = [System.Drawing.Color]::IndianRed; $btnClear.ForeColor = [System.Drawing.Color]::White; $btnClear.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold); $btnClear.DialogResult = 'Abort' 
-        $dtForm.Controls.Add($btnClear)
-
-        $dtForm.AcceptButton = $btnOk; $dtForm.CancelButton = $btnCancel
-
-        $dialogResult = $dtForm.ShowDialog($uploadForm)
-
-        if ($dialogResult -eq 'OK') { return "$($calendar.SelectionStart.ToString("MM/dd/yyyy")) $($cbHours.SelectedItem):$($cbMinutes.SelectedItem)" } 
-        elseif ($dialogResult -eq 'Abort') { return "CLEAR_CELL" }
-        return $null
-    }
-
-    $vmrTable.Add_CellClick({
-        param($sender, $e)
-        if ($e.RowIndex -ge 0 -and $e.ColumnIndex -ge 1 -and $e.ColumnIndex -le 10) {
-            $currentVal = $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value
-            $parsedDate = $null
-            if ([datetime]::TryParse($currentVal, [ref]$parsedDate)) { $initialDate = $parsedDate } else { $initialDate = Get-Date }
-
-            $result = Get-CustomDateTime -initialDate $initialDate
-
-            if ($result -eq "CLEAR_CELL") { $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value = "" } 
-            elseif ($result) { $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value = $result }
-        }
-    })
-
-    # Function to keep Submit centered and Back button in bottom right
-    $resizeControls = {
-        $submitReportBtn.Location = New-Object System.Drawing.Point(($bottomPanel.Width - $submitReportBtn.Width) / 2, ($bottomPanel.Height - $submitReportBtn.Height) / 2)
-        $backBtn.Location = New-Object System.Drawing.Point($bottomPanel.Width - $backBtn.Width - 50, ($bottomPanel.Height - $backBtn.Height) / 2)
-    }
-    $uploadForm.Add_Resize($resizeControls); $uploadForm.Add_Shown($resizeControls)
-
-    $submitReportBtn.Add_Click({ [System.Windows.Forms.MessageBox]::Show("VMR Data Submitted Successfully.", "Submission Complete") })
-    $uploadForm.ShowDialog()
-}
-
-# FULL-SCREEN VMR ENTRY FUNCTION
-function Show-VmrUploadScreen($parentForm) {
-    $uploadForm = New-Object System.Windows.Forms.Form
-    $uploadForm.Text = 'Daily VMR Entry'
-    $uploadForm.WindowState = 'Maximized' 
-    $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-
-    # 1. Title Label
-    $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Dock = [System.Windows.Forms.DockStyle]::Top
-    $titleLabel.Height = 80
-    $titleLabel.Text = "DAILY VESSEL MOVEMENT REPORT FOR GREAT LAKES ICEBREAKING OPERATIONS"
-    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Bold)
-    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $uploadForm.Controls.Add($titleLabel)
-
-    # 2. Bottom Action Panel
-    $bottomPanel = New-Object System.Windows.Forms.Panel
-    $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
-    $bottomPanel.Height = 100
-    $uploadForm.Controls.Add($bottomPanel)
-
-    $submitReportBtn = New-Object System.Windows.Forms.Button
-    $submitReportBtn.Text = "Submit Report"
-    $submitReportBtn.Size = New-Object System.Drawing.Size(200, 50)
-    $submitReportBtn.BackColor = [System.Drawing.Color]::SeaGreen
-    $submitReportBtn.ForeColor = [System.Drawing.Color]::White
-    $submitReportBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $bottomPanel.Controls.Add($submitReportBtn)
-
-    $backBtn = New-Object System.Windows.Forms.Button
-    $backBtn.Text = "Back"
-    $backBtn.Size = New-Object System.Drawing.Size(100, 40)
-    $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $bottomPanel.Controls.Add($backBtn)
-
-    # 3. TABLE CONTAINER
-    $marginPanel = New-Object System.Windows.Forms.Panel
-    $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
-    $marginPanel.Width = $uploadForm.Width
-    $marginPanel.Height = $uploadForm.Height - 180 
-    $marginPanel.Anchor = "Top, Bottom, Left, Right"
-    $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
-    $uploadForm.Controls.Add($marginPanel)
-
-    # 4. Main Reporting Table
-    $vmrTable = New-Object System.Windows.Forms.DataGridView
-    $vmrTable.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $vmrTable.AllowUserToAddRows = $false
-    $vmrTable.RowHeadersVisible = $false
-    $vmrTable.BackgroundColor = [System.Drawing.Color]::White
-    $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
-    $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
-    
-    # Enable instant editing on first click
-    $vmrTable.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnEnter
-    
-    $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
-    $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
-    $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
-    
-    $vmrTable.ColumnHeadersHeight = 60 
-    $vmrTable.RowTemplate.Height = 45 
-    
-    # Headers Array
-    $headers = @(
-        "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
-        "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
-        "Upbound ETA to SE Shoal or Detroit River Light", "ETD from Lake Erie or Lake Huron Dock",
-        "ETD from Detroit/St. Clair River Dock", "Ice Breaker Requested?", "Type of Cargo", "Dest.",
-        "Additional information that may effect ETA or ETD"
-    )
-
+    # [...](asc_slot://start-slot-7)Build columns
     # COLUMN 0: VESSEL NAME (COMBOBOX WITH AUTO-ENTRY)
     $vesselCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
     $vesselCol.HeaderText = $headers[0]
     $vesselCol.FlatStyle = 'Flat'
-    # Initial Ships
     $vesselCol.Items.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
     $vmrTable.Columns.Add($vesselCol) | Out-Null
 
-    # Build standard columns for 1-10 (Dates) and 12-14 (Text)
     for ($i = 1; $i -lt 15; $i++) {
         if ($i -eq 11) {
             $comboCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
@@ -444,17 +236,12 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.RowCount = 6
     $marginPanel.Controls.Add($vmrTable)
 
-    # =========================================================================
-    # 5. VESSEL AUTO-ENTRY LOGIC (POC STYLE)
-    # =========================================================================
-    
-    # This event triggers when you click into a Vessel Name cell
+    # 5. VESSEL AUTO-ENTRY LOGIC
     $vmrTable.Add_EditingControlShowing({
         param($sender, $e)
         if ($sender.CurrentCell.ColumnIndex -eq 0) {
             $combo = $e.Control -as [System.Windows.Forms.ComboBox]
             if ($combo) {
-                # This makes it behave like your POC Location dropdown
                 $combo.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDown
                 $combo.AutoCompleteMode = [System.Windows.Forms.AutoCompleteMode]::SuggestAppend
                 $combo.AutoCompleteSource = [System.Windows.Forms.AutoCompleteSource]::ListItems
@@ -462,27 +249,19 @@ function Show-VmrUploadScreen($parentForm) {
         }
     })
 
-    # This handles the case where you type a NEW vessel not in the list
     $vmrTable.Add_CellValidating({
         param($sender, $e)
         if ($e.ColumnIndex -eq 0) {
             $comboCol = $sender.Columns[0] -as [System.Windows.Forms.DataGridViewComboBoxColumn]
             $enteredValue = $e.FormattedValue.ToString()
-            
-            # If the name isn't in the list, add it so the grid doesn't error out
             if (-not [string]::IsNullOrWhiteSpace($enteredValue) -and -not $comboCol.Items.Contains($enteredValue)) {
                 $comboCol.Items.Add($enteredValue) | Out-Null
             }
         }
     })
-
-    # Prevent the "Value is not valid" error when typing custom text in a ComboBox column
     $vmrTable.Add_DataError({ param($sender, $e) $e.ThrowException = $false })
 
-    # =========================================================================
     # 6. CUSTOM DATE & TIME POPUP LOGIC
-    # =========================================================================
-    
     function Get-CustomDateTime($initialDate) {
         $dtForm = New-Object System.Windows.Forms.Form
         $dtForm.Text = "Select Date and Time"
@@ -550,233 +329,6 @@ function Show-VmrUploadScreen($parentForm) {
     $submitReportBtn.Add_Click({ [System.Windows.Forms.MessageBox]::Show("VMR Data Submitted Successfully.", "Submission Complete") })
     $uploadForm.ShowDialog()
 }
-
-# FULL-SCREEN VMR ENTRY FUNCTION
-function Show-VmrUploadScreen($parentForm) {
-    $uploadForm = New-Object System.Windows.Forms.Form
-    $uploadForm.Text = 'Daily VMR Entry'
-    $uploadForm.WindowState = 'Maximized' 
-    $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
-
-    # 1. Title Label
-    $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Dock = [System.Windows.Forms.DockStyle]::Top
-    $titleLabel.Height = 80
-    $titleLabel.Text = "DAILY VESSEL MOVEMENT REPORT FOR GREAT LAKES ICEBREAKING OPERATIONS"
-    $titleLabel.Font = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Bold)
-    $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-    $uploadForm.Controls.Add($titleLabel)
-
-    # 2. Bottom Action Panel
-    $bottomPanel = New-Object System.Windows.Forms.Panel
-    $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
-    $bottomPanel.Height = 100
-    $uploadForm.Controls.Add($bottomPanel)
-
-    $submitReportBtn = New-Object System.Windows.Forms.Button
-    $submitReportBtn.Text = "Submit Report"
-    $submitReportBtn.Size = New-Object System.Drawing.Size(200, 50)
-    $submitReportBtn.BackColor = [System.Drawing.Color]::SeaGreen
-    $submitReportBtn.ForeColor = [System.Drawing.Color]::White
-    $submitReportBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $bottomPanel.Controls.Add($submitReportBtn)
-
-    $backBtn = New-Object System.Windows.Forms.Button
-    $backBtn.Text = "Back"
-    $backBtn.Size = New-Object System.Drawing.Size(100, 40)
-    $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $bottomPanel.Controls.Add($backBtn)
-
-    # 3. TABLE CONTAINER
-    $marginPanel = New-Object System.Windows.Forms.Panel
-    $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
-    $marginPanel.Width = $uploadForm.Width
-    $marginPanel.Height = $uploadForm.Height - 180 
-    $marginPanel.Anchor = "Top, Bottom, Left, Right"
-    $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
-    $uploadForm.Controls.Add($marginPanel)
-
-    # 4. Main Reporting Table
-    $vmrTable = New-Object System.Windows.Forms.DataGridView
-    $vmrTable.Dock = [System.Windows.Forms.DockStyle]::Fill
-    
-    # REMOVED ColumnCount = 15 from here to prevent duplicate blank columns!
-    
-    $vmrTable.AllowUserToAddRows = $false
-    $vmrTable.RowHeadersVisible = $false # Keeps the far-left blank row-selector hidden
-    $vmrTable.BackgroundColor = [System.Drawing.Color]::White
-    $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
-    $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
-
-    $vmrTable.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnEnter
-    
-    $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
-    $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
-    $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
-    
-    $vmrTable.ColumnHeadersHeight = 60 
-    $vmrTable.RowTemplate.Height = 45 
-    
-    # Custom Headers
-    $headers = @(
-        "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
-        "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
-        "Upbound ETA to SE Shoal or Detroit River Light", "ETD from Lake Erie or Lake Huron Dock",
-        "ETD from Detroit/St. Clair River Dock", "Ice Breaker Requested?", "Type of Cargo", "Dest.",
-        "Additional information that may effect ETA or ETD"
-    )
-
-    # Build the 15 columns dynamically
-    for ($i = 0; $i -lt 15; $i++) {
-        if ($i -eq 11) {
-            $comboCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
-            $comboCol.HeaderText = $headers[$i]
-            $comboCol.Items.Add("Yes") | Out-Null
-            $comboCol.Items.Add("No") | Out-Null
-            $vmrTable.Columns.Add($comboCol) | Out-Null
-        } else {
-            $textCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
-            $textCol.HeaderText = $headers[$i]
-            $vmrTable.Columns.Add($textCol) | Out-Null
-        }
-    }
-
-    # Add thick vertical line after Rock Island Passage (Index 6)
-    $vmrTable.Columns[6].DividerWidth = 5
-
-    # Make the Date/Time columns (1-10) read-only so users MUST use the popup
-    for ($i = 1; $i -le 10; $i++) {
-        $vmrTable.Columns[$i].ReadOnly = $true
-    }
-
-    # Add 6 empty rows NOW that the columns actually exist
-    $vmrTable.RowCount = 6
-
-    $marginPanel.Controls.Add($vmrTable)
-
-    # =========================================================================
-    # 5. CUSTOM DATE & TIME POPUP LOGIC (WITH CLEAR BUTTON)
-    # =========================================================================
-    
-    function Get-CustomDateTime($initialDate) {
-        $dtForm = New-Object System.Windows.Forms.Form
-        $dtForm.Text = "Select Date and Time"
-        $dtForm.Size = New-Object System.Drawing.Size(260, 360) 
-        $dtForm.StartPosition = "CenterParent"
-        $dtForm.FormBorderStyle = 'FixedDialog'
-        $dtForm.MaximizeBox = $false
-        $dtForm.MinimizeBox = $false
-
-        # Calendar Control
-        $calendar = New-Object System.Windows.Forms.MonthCalendar
-        $calendar.Location = New-Object System.Drawing.Point(15, 15)
-        $calendar.MaxSelectionCount = 1
-        if ($initialDate) { $calendar.SetDate($initialDate) }
-        $dtForm.Controls.Add($calendar)
-
-        # Time Label
-        $timeLabel = New-Object System.Windows.Forms.Label
-        $timeLabel.Text = "Time (24hr):"
-        $timeLabel.Location = New-Object System.Drawing.Point(15, 190)
-        $timeLabel.Size = New-Object System.Drawing.Size(80, 20)
-        $dtForm.Controls.Add($timeLabel)
-
-        # Hours Dropdown (00 - 23)
-        $cbHours = New-Object System.Windows.Forms.ComboBox
-        $cbHours.Location = New-Object System.Drawing.Point(95, 187)
-        $cbHours.Size = New-Object System.Drawing.Size(50, 20)
-        $cbHours.DropDownStyle = 'DropDownList'
-        for ($h = 0; $h -le 23; $h++) { $cbHours.Items.Add($h.ToString("00")) | Out-Null }
-        $cbHours.SelectedItem = if ($initialDate) { $initialDate.ToString("HH") } else { "12" }
-        $dtForm.Controls.Add($cbHours)
-
-        # Minutes Dropdown (00 - 59)
-        $cbMinutes = New-Object System.Windows.Forms.ComboBox
-        $cbMinutes.Location = New-Object System.Drawing.Point(155, 187)
-        $cbMinutes.Size = New-Object System.Drawing.Size(50, 20)
-        $cbMinutes.DropDownStyle = 'DropDownList'
-        for ($m = 0; $m -le 59; $m++) { $cbMinutes.Items.Add($m.ToString("00")) | Out-Null }
-        $cbMinutes.SelectedItem = if ($initialDate) { $initialDate.ToString("mm") } else { "00" }
-        $dtForm.Controls.Add($cbMinutes)
-
-        # OK Button
-        $btnOk = New-Object System.Windows.Forms.Button
-        $btnOk.Text = "OK"
-        $btnOk.Location = New-Object System.Drawing.Point(15, 230)
-        $btnOk.Size = New-Object System.Drawing.Size(100, 30)
-        $btnOk.DialogResult = 'OK'
-        $dtForm.Controls.Add($btnOk)
-
-        # Cancel Button
-        $btnCancel = New-Object System.Windows.Forms.Button
-        $btnCancel.Text = "Cancel"
-        $btnCancel.Location = New-Object System.Drawing.Point(125, 230)
-        $btnCancel.Size = New-Object System.Drawing.Size(100, 30)
-        $btnCancel.DialogResult = 'Cancel'
-        $dtForm.Controls.Add($btnCancel)
-
-        # Clear Button
-        $btnClear = New-Object System.Windows.Forms.Button
-        $btnClear.Text = "Clear"
-        $btnClear.Location = New-Object System.Drawing.Point(15, 270)
-        $btnClear.Size = New-Object System.Drawing.Size(210, 30)
-        $btnClear.BackColor = [System.Drawing.Color]::IndianRed
-        $btnClear.ForeColor = [System.Drawing.Color]::White
-        $btnClear.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
-        $btnClear.DialogResult = 'Abort' 
-        $dtForm.Controls.Add($btnClear)
-
-        $dtForm.AcceptButton = $btnOk
-        $dtForm.CancelButton = $btnCancel
-
-        $dialogResult = $dtForm.ShowDialog($uploadForm)
-
-        if ($dialogResult -eq 'OK') {
-            $selectedDate = $calendar.SelectionStart.ToString("MM/dd/yyyy")
-            $selectedTime = "$($cbHours.SelectedItem):$($cbMinutes.SelectedItem)"
-            return "$selectedDate $selectedTime"
-        } elseif ($dialogResult -eq 'Abort') {
-            return "CLEAR_CELL" 
-        }
-        return $null
-    }
-
-    # Intercept clicks on the specific Date/Time columns (1 through 10)
-    $vmrTable.Add_CellClick({
-        param($sender, $e)
-        if ($e.RowIndex -ge 0 -and $e.ColumnIndex -ge 1 -and $e.ColumnIndex -le 10) {
-            
-            $currentVal = $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value
-            $parsedDate = $null
-            if ([datetime]::TryParse($currentVal, [ref]$parsedDate)) {
-                $initialDate = $parsedDate
-            } else {
-                $initialDate = Get-Date # Default to today
-            }
-
-            # Call our custom popup form
-            $result = Get-CustomDateTime -initialDate $initialDate
-
-            if ($result -eq "CLEAR_CELL") {
-                $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value = ""
-            } elseif ($result) {
-                $vmrTable.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value = $result
-            }
-        }
-    })
-    # =========================================================================
-
-    # Function to keep Submit centered and Back button in bottom right
-    $resizeControls = {
-        $submitReportBtn.Location = New-Object System.Drawing.Point(($bottomPanel.Width - $submitReportBtn.Width) / 2, ($bottomPanel.Height - $submitReportBtn.Height) / 2)
-        $backBtn.Location = New-Object System.Drawing.Point($bottomPanel.Width - $backBtn.Width - 50, ($bottomPanel.Height - $backBtn.Height) / 2)
-    }
-    $uploadForm.Add_Resize($resizeControls); $uploadForm.Add_Shown($resizeControls)
-
-    $submitReportBtn.Add_Click({ [System.Windows.Forms.MessageBox]::Show("VMR Data Submitted Successfully.", "Submission Complete") })
-    $uploadForm.ShowDialog()
-}
-
 
 function Show-PocSelectionScreen($parentForm, $currentUser) {
     $selectionForm = New-Object System.Windows.Forms.Form; $selectionForm.Text = 'Taconite App - Cutter POCs'; $selectionForm.Size = New-Object System.Drawing.Size(500, 380); $selectionForm.StartPosition = 'CenterScreen'; $selectionForm.BackColor = [System.Drawing.Color]::WhiteSmoke
