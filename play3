@@ -143,7 +143,7 @@ function Show-VmrCenter($parentForm, $currentUser) {
 function Show-VmrUploadScreen($parentForm) {
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
-    $uploadForm.WindowState = 'Maximized' 
+    $uploadForm.WindowState = 'Maximized'
     $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
     # 1. Title Label
@@ -179,7 +179,7 @@ function Show-VmrUploadScreen($parentForm) {
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
-    $marginPanel.Height = $uploadForm.Height - 180 
+    $marginPanel.Height = $uploadForm.Height - 180
     $marginPanel.Anchor = "Top, Bottom, Left, Right"
     $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20)
     $uploadForm.Controls.Add($marginPanel)
@@ -193,14 +193,14 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $vmrTable.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnEnter
-    
+
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
     $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
-    
-    $vmrTable.ColumnHeadersHeight = 60 
-    $vmrTable.RowTemplate.Height = 45 
-    
+
+    $vmrTable.ColumnHeadersHeight = 60
+    $vmrTable.RowTemplate.Height = 45
+
     # Headers Array
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
@@ -210,59 +210,65 @@ function Show-VmrUploadScreen($parentForm) {
         "Additional information that may effect ETA or ETD"
     )
 
-    # Build columns
-    # COLUMN 0: VESSEL NAME (COMBOBOX WITH AUTO-ENTRY)
-    $vesselCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
-    $vesselCol.HeaderText = $headers[0]
-    $vesselCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White #<- FIX
-    $vesselCol.Items.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
-    $vmrTable.Columns.Add($vesselCol) | Out-Null
-
-    # Build the rest of the columns
-    for ($i = 1; $i -lt 15; $i++) {
-        if ($i -eq 11) {
+    # Build the 15 columns dynamically
+    for ($i = 0; $i -lt 15; $i++) {
+        if ($i -eq 11) { # "Ice Breaker Requested?" Column
             $comboCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
             $comboCol.HeaderText = $headers[$i]
-            $comboCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White #<- FIX
+            $comboCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White
             $comboCol.Items.AddRange(@("Yes", "No"))
             $vmrTable.Columns.Add($comboCol) | Out-Null
-        } else {
+        } else { # All other columns are standard text
             $textCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
             $textCol.HeaderText = $headers[$i]
             $vmrTable.Columns.Add($textCol) | Out-Null
         }
     }
 
+    # Add thick vertical line after Rock Island Passage (Index 6)
     $vmrTable.Columns[6].DividerWidth = 5
-    for ($i = 1; $i -le 10; $i++) { $vmrTable.Columns[$i].ReadOnly = $true }
 
+    # Make the Date/Time columns (1-10) read-only so users MUST use the popup
+    for ($i = 1; $i -le 10; $i++) {
+        $vmrTable.Columns[$i].ReadOnly = $true
+    }
+
+    # Add 6 empty rows NOW that the columns actually exist
     $vmrTable.RowCount = 6
+
     $marginPanel.Controls.Add($vmrTable)
 
-    # 5. VESSEL AUTO-ENTRY LOGIC
+    # 5. VESSEL AUTO-ENTRY LOGIC (POC STYLE - NO BLACK BOX)
+    $vesselList = New-Object System.Windows.Forms.AutoCompleteStringCollection
+    $vesselList.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
+
     $vmrTable.Add_EditingControlShowing({
         param($sender, $e)
+        # Force the editing control to have a white background
+        $e.Control.BackColor = [System.Drawing.Color]::White
+
         if ($sender.CurrentCell.ColumnIndex -eq 0) {
-            $combo = $e.Control -as [System.Windows.Forms.ComboBox]
-            if ($combo) {
-                $combo.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDown
-                $combo.AutoCompleteMode = [System.Windows.Forms.AutoCompleteMode]::SuggestAppend
-                $combo.AutoCompleteSource = [System.Windows.Forms.AutoCompleteSource]::ListItems
+            $textBox = $e.Control -as [System.Windows.Forms.TextBox]
+            if ($textBox) {
+                $textBox.AutoCompleteMode = [System.Windows.Forms.AutoCompleteMode]::SuggestAppend
+                $textBox.AutoCompleteSource = [System.Windows.Forms.AutoCompleteSource]::CustomSource
+                $textBox.AutoCompleteCustomSource = $vesselList
             }
+        } else {
+            $textBox = $e.Control -as [System.Windows.Forms.TextBox]
+            if ($textBox) { $textBox.AutoCompleteMode = [System.Windows.Forms.AutoCompleteMode]::None }
         }
     })
 
-    $vmrTable.Add_CellValidating({
+    $vmrTable.Add_CellEndEdit({
         param($sender, $e)
         if ($e.ColumnIndex -eq 0) {
-            $comboCol = $sender.Columns[0] -as [System.Windows.Forms.DataGridViewComboBoxColumn]
-            $enteredValue = $e.FormattedValue.ToString()
-            if (-not [string]::IsNullOrWhiteSpace($enteredValue) -and -not $comboCol.Items.Contains($enteredValue)) {
-                $comboCol.Items.Add($enteredValue) | Out-Null
+            $cellValue = $sender.Rows[$e.RowIndex].Cells[$e.ColumnIndex].Value
+            if (-not [string]::IsNullOrWhiteSpace($cellValue) -and -not $vesselList.Contains($cellValue)) {
+                $vesselList.Add($cellValue) | Out-Null
             }
         }
     })
-    $vmrTable.Add_DataError({ param($sender, $e) $e.ThrowException = $false })
 
     # 6. CUSTOM DATE & TIME POPUP LOGIC
     function Get-CustomDateTime($initialDate) {
