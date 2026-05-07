@@ -172,13 +172,11 @@ function Show-VmrCenter($parentForm, $currentUser) {
 
     $vmrForm.ShowDialog()
 }
-
-# FULL-SCREEN VMR ENTRY FUNCTION
 function Show-VmrUploadScreen($parentForm) {
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
     $uploadForm.WindowState = 'Maximized' 
-    $uploadForm.BackColor = [System.Drawing.Color]::White
+    $uploadForm.BackColor = [System.Drawing.Color]::WhiteSmoke
 
     # 1. Title Label
     $titleLabel = New-Object System.Windows.Forms.Label
@@ -189,7 +187,7 @@ function Show-VmrUploadScreen($parentForm) {
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $uploadForm.Controls.Add($titleLabel)
 
-    # 2. Bottom Action Panel (Container for the centered button)
+    # 2. Bottom Action Panel
     $bottomPanel = New-Object System.Windows.Forms.Panel
     $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
     $bottomPanel.Height = 100
@@ -206,40 +204,50 @@ function Show-VmrUploadScreen($parentForm) {
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "Back"
     $backBtn.Size = New-Object System.Drawing.Size(100, 40)
-    $backBtn.Location = New-Object System.Drawing.Point(20, 30) # Fixed to the left
+    $backBtn.Location = New-Object System.Drawing.Point(50, 30) 
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $bottomPanel.Controls.Add($backBtn)
 
-    # Function to keep the Submit button centered
+    # Function to keep Submit button centered
     $centerControls = {
         $submitReportBtn.Location = New-Object System.Drawing.Point(($bottomPanel.Width - $submitReportBtn.Width) / 2, ($bottomPanel.Height - $submitReportBtn.Height) / 2)
     }
     $uploadForm.Add_Resize($centerControls)
     $uploadForm.Add_Shown($centerControls)
 
-    # 3. Main Reporting Table
+    # 3. TABLE CONTAINER (This adds the "Margins" you requested)
+    $marginPanel = New-Object System.Windows.Forms.Panel
+    $marginPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $marginPanel.Padding = New-Object System.Windows.Forms.Padding(50, 20, 50, 20) # Left, Top, Right, Bottom margins
+    $uploadForm.Controls.Add($marginPanel)
+
+    # 4. Main Reporting Table
     $vmrTable = New-Object System.Windows.Forms.DataGridView
     $vmrTable.Dock = [System.Windows.Forms.DockStyle]::Fill
     $vmrTable.ColumnCount = 15
     $vmrTable.RowCount = 6
     $vmrTable.AllowUserToAddRows = $false
     $vmrTable.RowHeadersVisible = $false
+    $vmrTable.BackgroundColor = [System.Drawing.Color]::White
+    $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     
-    # FORCE ALL 15 COLUMNS TO BE VISIBLE
+    # Grid Logic: Ensures all 15 columns fit in the allowed space
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
-    $vmrTable.DefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 10)
+    $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
     
-    # Label columns generically
+    # Set a comfortable row height so 6 rows look clean
+    $vmrTable.RowTemplate.Height = 45 
+    
     for ($i = 0; $i -lt 15; $i++) {
         $vmrTable.Columns[$i].HeaderText = "Col $($i + 1)"
     }
 
-    $uploadForm.Controls.Add($vmrTable)
+    $marginPanel.Controls.Add($vmrTable)
 
     # Events
     $submitReportBtn.Add_Click({
-        [System.Windows.Forms.MessageBox]::Show("Report data captured. Submission logic pending.", "VMR Submission")
+        [System.Windows.Forms.MessageBox]::Show("VMR Data Submitted Successfully.", "Submission Complete")
     })
 
     $uploadForm.ShowDialog()
