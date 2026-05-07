@@ -1,6 +1,6 @@
 # TACONITE APP
 # Secure Mission Support Assistant - IL5 Optimized
-# Functional: Login, Cutter Movements, POC Hours, and Vessel Movement Reports (VMR)
+# Log in screen, Cutter Movements, POC Hours, and Vessel Movement Reports (VMR)
 
 # 1. Load Required .NET Assemblies
 Add-Type -AssemblyName System.Windows.Forms
@@ -132,10 +132,7 @@ function Show-VmrCenter($parentForm, $currentUser) {
     $titleLabel = New-Object System.Windows.Forms.Label; $titleLabel.Location = New-Object System.Drawing.Point(0, 20); $titleLabel.Size = New-Object System.Drawing.Size(340, 30); $titleLabel.Text = "VMR CENTER"; $titleLabel.Font = New-Object System.Drawing.Font("Arial", 16, [System.Drawing.FontStyle]::Bold); $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter; $vmrForm.Controls.Add($titleLabel)
     $divider1 = New-Object System.Windows.Forms.Panel; $divider1.Location = New-Object System.Drawing.Point(40, 60); $divider1.Size = New-Object System.Drawing.Size(260, 2); $divider1.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider1)
     $uploadVmrButton = New-Object System.Windows.Forms.Button; $uploadVmrButton.Location = New-Object System.Drawing.Point(70, 90); $uploadVmrButton.Size = New-Object System.Drawing.Size(200, 50); $uploadVmrButton.Text = "Submit a VMR"; $uploadVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $uploadVmrButton.BackColor = [System.Drawing.Color]::SeaGreen; $uploadVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($uploadVmrButton)
-    
-    # Red button with coordinates (70, 170) and size (200, 50)
     $viewSubmittedVmrButton = New-Object System.Windows.Forms.Button; $viewSubmittedVmrButton.Location = New-Object System.Drawing.Point(70, 170); $viewSubmittedVmrButton.Size = New-Object System.Drawing.Size(200, 50); $viewSubmittedVmrButton.Text = "View My Submitted VMRs"; $viewSubmittedVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $viewSubmittedVmrButton.BackColor = [System.Drawing.Color]::Firebrick; $viewSubmittedVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($viewSubmittedVmrButton)
-    
     $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40, 320); $divider2.Size = New-Object System.Drawing.Size(260, 2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider2)
     $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(125, 340); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
     $uploadVmrButton.Add_Click({ Show-VmrUploadScreen $vmrForm }); $viewSubmittedVmrButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("Feature coming soon!", "View Submitted VMRs") })
@@ -158,27 +155,27 @@ function Show-VmrUploadScreen($parentForm) {
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $uploadForm.Controls.Add($titleLabel)
 
-    # =========================================================================
-    # 2. ACTION BUTTONS (Placed directly on form for perfect centering)
-    # =========================================================================
-    
+    # 2. Bottom Action Panel (Container for centered Submit and Back)
+    $bottomPanel = New-Object System.Windows.Forms.Panel
+    $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+    $bottomPanel.Height = 100
+    $uploadForm.Controls.Add($bottomPanel)
+
     $submitReportBtn = New-Object System.Windows.Forms.Button
     $submitReportBtn.Text = "Submit Report"
     $submitReportBtn.Size = New-Object System.Drawing.Size(200, 50)
     $submitReportBtn.BackColor = [System.Drawing.Color]::SeaGreen
     $submitReportBtn.ForeColor = [System.Drawing.Color]::White
     $submitReportBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
-    $submitReportBtn.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom
-    $uploadForm.Controls.Add($submitReportBtn)
+    $bottomPanel.Controls.Add($submitReportBtn)
 
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "Back"
     $backBtn.Size = New-Object System.Drawing.Size(100, 40)
     $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $backBtn.Anchor = ([System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right)
-    $uploadForm.Controls.Add($backBtn)
+    $bottomPanel.Controls.Add($backBtn)
 
-    # 3. TABLE CONTAINER (No bottom panel, giving more room to the table)
+    # 3. TABLE CONTAINER (Responsive Padding)
     $marginPanel = New-Object System.Windows.Forms.Panel
     $marginPanel.Location = New-Object System.Drawing.Point(0, 80)
     $marginPanel.Width = $uploadForm.Width
@@ -196,23 +193,24 @@ function Show-VmrUploadScreen($parentForm) {
     $vmrTable.BorderStyle = [System.Windows.Forms.BorderStyle]::Fixed3D
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
     $vmrTable.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnEnter
+    $vmrTable.DefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
     
     $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $vmrTable.ColumnHeadersDefaultCellStyle.Alignment = [System.Windows.Forms.DataGridViewContentAlignment]::MiddleCenter
     $vmrTable.ColumnHeadersDefaultCellStyle.WrapMode = [System.Windows.Forms.DataGridViewTriState]::True
     
     $vmrTable.ColumnHeadersHeight = 60 
-    $vmrTable.RowTemplate.Height = 45 
+    $vmrTable.RowTemplate.Height = 100 # Adjusted Height to fill space
     
     $headers = @(
         "Vessel Name", "Eastbound at Lansing Shoal", "Westbound Round Island", "Upbound DeTour Reef Light",
-        "DownboundWhitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
+        "Downbound Whitefish Point", "ETA to Sturgeon Bay", "ETA to Rock Island Passage", "Downbound ETA to LHC 11&12",
         "Upbound ETA to SE Shoal or Detroit River Light", "ETD from Lake Erie or Lake Huron Dock",
         "ETD from Detroit/St. Clair River Dock", "Ice Breaker Requested?", "Type of Cargo", "Dest.",
         "Additional information that may effect ETA or ETD"
     )
 
-    # COLUMN 0: VESSEL NAME (Text Box with hidden POC-style Auto-Entry bank)
+    # COLUMN 0: VESSEL NAME (TextBox with SuggestAppend memory)
     $vesselCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
     $vesselCol.HeaderText = $headers[0]
     $vesselCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White
@@ -221,23 +219,24 @@ function Show-VmrUploadScreen($parentForm) {
     for ($i = 1; $i -lt 15; $i++) {
         if ($i -eq 11) {
             $comboCol = New-Object System.Windows.Forms.DataGridViewComboBoxColumn
-            $comboCol.HeaderText = $headers[$i]
-            $comboCol.Items.AddRange(@("Yes", "No"))
-            $comboCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White
-            $vmrTable.Columns.Add($comboCol) | Out-Null
+            $comboCol.HeaderText = $headers[$i]; $comboCol.Items.AddRange(@("Yes", "No")); $comboCol.DefaultCellStyle.BackColor = [System.Drawing.Color]::White; $vmrTable.Columns.Add($comboCol) | Out-Null
         } else {
             $textCol = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
-            $textCol.HeaderText = $headers[$i]
-            $vmrTable.Columns.Add($textCol) | Out-Null
+            $textCol.HeaderText = $headers[$i]; $vmrTable.Columns.Add($textCol) | Out-Null
         }
     }
 
     $vmrTable.Columns[6].DividerWidth = 5
     for ($i = 1; $i -le 10; $i++) { $vmrTable.Columns[$i].ReadOnly = $true }
     $vmrTable.RowCount = 6
+    
+    # Auto-Calculate row height to perfectly fill space
+    $availableHeight = $vmrTable.Height - $vmrTable.ColumnHeadersHeight
+    $vmrTable.Rows | ForEach-Object { $_.Height = ($availableHeight / 1.4) }
+
     $marginPanel.Controls.Add($vmrTable)
 
-    # VESSEL AUTO-ENTRY LOGIC (POC STYLE)
+    # 5. VESSEL AUTO-ENTRY LOGIC (POC STYLE)
     $vesselList = New-Object System.Windows.Forms.AutoCompleteStringCollection
     $vesselList.AddRange(@("Algocanada", "John G. Munson", "Presque Isle", "Great Republic"))
 
@@ -271,7 +270,7 @@ function Show-VmrUploadScreen($parentForm) {
 
     $vmrTable.Add_DataError({ param($sender, $e) $e.ThrowException = $false })
 
-    # DATE & TIME POPUP
+    # 6. CUSTOM DATE & TIME POPUP LOGIC
     function Get-CustomDateTime($initialDate) {
         $dtForm = New-Object System.Windows.Forms.Form; $dtForm.Text = "Select Date and Time"; $dtForm.Size = New-Object System.Drawing.Size(260, 360); $dtForm.StartPosition = "CenterParent"; $dtForm.FormBorderStyle = 'FixedDialog'; $dtForm.MaximizeBox = $false; $dtForm.MinimizeBox = $false
         $calendar = New-Object System.Windows.Forms.MonthCalendar; $calendar.Location = New-Object System.Drawing.Point(15, 15); $calendar.MaxSelectionCount = 1
@@ -308,19 +307,17 @@ function Show-VmrUploadScreen($parentForm) {
         }
     })
 
-    # =========================================================================
-    # FIXED CENTERING LOGIC FOR BUTTONS
-    # =========================================================================
+    # DYNAMIC LAYOUT LOGIC FOR BUTTONS
     $resizeControls = {
-        # 1. Calculate perfect center X for the Submit Button
-        $submitX = ($uploadForm.ClientSize.Width - $submitReportBtn.Width) / 2
-        # 2. Place it 30 pixels from the bottom of the screen
-        $submitY = $uploadForm.ClientSize.Height - $submitReportBtn.Height - 30 
+        # 1. Center the Submit Button
+        $submitX = ($bottomPanel.Width - $submitReportBtn.Width) / 2
+        $submitY = ($bottomPanel.Height - $submitReportBtn.Height) / 2
         $submitReportBtn.Location = New-Object System.Drawing.Point($submitX, $submitY)
 
-        # 3. Place Back button 50 pixels from the right edge, matching the Y of Submit
-        $backY = $uploadForm.ClientSize.Height - $backBtn.Height - 30
-        $backBtn.Location = New-Object System.Drawing.Point($uploadForm.ClientSize.Width - $backBtn.Width - 50, $backY)
+        # 2. Place the Back Button to the right of the Submit button, with a 20px gap
+        $backX = $submitReportBtn.Right + 20
+        $backY = ($bottomPanel.Height - $backBtn.Height) / 2
+        $backBtn.Location = New-Object System.Drawing.Point($backX, $backY)
     }
     $uploadForm.Add_Resize($resizeControls); $uploadForm.Add_Shown($resizeControls)
 
