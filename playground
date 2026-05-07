@@ -146,7 +146,7 @@ function Show-CutterMovements($parentForm, $currentUser) {
     }); $cutterForm.Add_Load({ &$rebuildDisplay }); $cutterForm.ShowDialog()
 }
 
-# UPDATED Show-VmrCenter FUNCTION
+# VMR CENTER FUNCTION
 function Show-VmrCenter($parentForm, $currentUser) {
     $vmrForm = New-Object System.Windows.Forms.Form
     $vmrForm.Text = 'VMR Center'
@@ -158,93 +158,86 @@ function Show-VmrCenter($parentForm, $currentUser) {
 
     $divider1 = New-Object System.Windows.Forms.Panel; $divider1.Location = New-Object System.Drawing.Point(40, 60); $divider1.Size = New-Object System.Drawing.Size(260, 2); $divider1.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider1)
 
-    # MODIFIED: Text changed to "Submit a VMR"
     $uploadVmrButton = New-Object System.Windows.Forms.Button; $uploadVmrButton.Location = New-Object System.Drawing.Point(70, 90); $uploadVmrButton.Size = New-Object System.Drawing.Size(200, 50); $uploadVmrButton.Text = "Submit a VMR"; $uploadVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $uploadVmrButton.BackColor = [System.Drawing.Color]::SeaGreen; $uploadVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($uploadVmrButton)
 
-    # ADDED: New red button for "View My Submitted VMRs" (replaced the old Vessel Requests button)
-    $viewSubmittedVmrButton = New-Object System.Windows.Forms.Button; $viewSubmittedVmrButton.Location = New-Object System.Drawing.Point(40, 170); $viewSubmittedVmrButton.Size = New-Object System.Drawing.Size(260, 120); $viewSubmittedVmrButton.Text = "View My Submitted VMRs"; $viewSubmittedVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $viewSubmittedVmrButton.BackColor = [System.Drawing.Color]::Firebrick; $viewSubmittedVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($viewSubmittedVmrButton)
+    # UPDATED: Location (70, 170) and Size (200, 50)
+    $viewSubmittedVmrButton = New-Object System.Windows.Forms.Button; $viewSubmittedVmrButton.Location = New-Object System.Drawing.Point(70, 170); $viewSubmittedVmrButton.Size = New-Object System.Drawing.Size(200, 50); $viewSubmittedVmrButton.Text = "View My Submitted VMRs"; $viewSubmittedVmrButton.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold); $viewSubmittedVmrButton.BackColor = [System.Drawing.Color]::Firebrick; $viewSubmittedVmrButton.ForeColor = [System.Drawing.Color]::White; $vmrForm.Controls.Add($viewSubmittedVmrButton)
 
     $divider2 = New-Object System.Windows.Forms.Panel; $divider2.Location = New-Object System.Drawing.Point(40, 320); $divider2.Size = New-Object System.Drawing.Size(260, 2); $divider2.BackColor = [System.Drawing.Color]::LightGray; $vmrForm.Controls.Add($divider2)
 
     $backButton = New-Object System.Windows.Forms.Button; $backButton.Location = New-Object System.Drawing.Point(125, 340); $backButton.Size = New-Object System.Drawing.Size(90, 30); $backButton.Text = 'Back'; $backButton.Font = New-Object System.Drawing.Font("Arial", 10); $backButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $vmrForm.CancelButton = $backButton; $vmrForm.Controls.Add($backButton)
 
-    # Button Actions
     $uploadVmrButton.Add_Click({ Show-VmrUploadScreen $vmrForm })
-
-    # TEMPORARY ACTION: Added a placeholder until we build the new screen
-    $viewSubmittedVmrButton.Add_Click({
-        [System.Windows.Forms.MessageBox]::Show("Feature coming soon!", "View Submitted VMRs")
-    })
+    $viewSubmittedVmrButton.Add_Click({ [System.Windows.Forms.MessageBox]::Show("Feature coming soon!", "View Submitted VMRs") })
 
     $vmrForm.ShowDialog()
 }
 
-
-# UPDATED Show-VmrUploadScreen FUNCTION
+# FULL-SCREEN VMR ENTRY FUNCTION
 function Show-VmrUploadScreen($parentForm) {
-    # 1. Initialize Full-Screen Form
     $uploadForm = New-Object System.Windows.Forms.Form
     $uploadForm.Text = 'Daily VMR Entry'
-    $uploadForm.WindowState = 'Maximized' # Ensures it takes up the entire screen
+    $uploadForm.WindowState = 'Maximized' 
     $uploadForm.BackColor = [System.Drawing.Color]::White
 
-    # 2. Title Label
+    # 1. Title Label
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Dock = [System.Windows.Forms.DockStyle]::Top
-    $titleLabel.Height = 100
+    $titleLabel.Height = 80
     $titleLabel.Text = "DAILY VESSEL MOVEMENT REPORT FOR GREAT LAKES ICEBREAKING OPERATIONS"
     $titleLabel.Font = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Bold)
     $titleLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $uploadForm.Controls.Add($titleLabel)
 
-    # 3. Main Reporting Table (15 Columns x 6 Rows)
-    $vmrTable = New-Object System.Windows.Forms.DataGridView
-    $vmrTable.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
-    $vmrTable.Location = New-Object System.Drawing.Point(50, 110)
-    $vmrTable.Size = New-Object System.Drawing.Size($uploadForm.Width - 100, $uploadForm.Height - 300)
+    # 2. Bottom Action Panel (Container for the centered button)
+    $bottomPanel = New-Object System.Windows.Forms.Panel
+    $bottomPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+    $bottomPanel.Height = 100
+    $uploadForm.Controls.Add($bottomPanel)
 
-    # Configure Table Structure
+    $submitReportBtn = New-Object System.Windows.Forms.Button
+    $submitReportBtn.Text = "Submit Report"
+    $submitReportBtn.Size = New-Object System.Drawing.Size(200, 50)
+    $submitReportBtn.BackColor = [System.Drawing.Color]::SeaGreen
+    $submitReportBtn.ForeColor = [System.Drawing.Color]::White
+    $submitReportBtn.Font = New-Object System.Drawing.Font("Arial", 11, [System.Drawing.FontStyle]::Bold)
+    $bottomPanel.Controls.Add($submitReportBtn)
+
+    $backBtn = New-Object System.Windows.Forms.Button
+    $backBtn.Text = "Back"
+    $backBtn.Size = New-Object System.Drawing.Size(100, 40)
+    $backBtn.Location = New-Object System.Drawing.Point(20, 30) # Fixed to the left
+    $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $bottomPanel.Controls.Add($backBtn)
+
+    # Function to keep the Submit button centered
+    $centerControls = {
+        $submitReportBtn.Location = New-Object System.Drawing.Point(($bottomPanel.Width - $submitReportBtn.Width) / 2, ($bottomPanel.Height - $submitReportBtn.Height) / 2)
+    }
+    $uploadForm.Add_Resize($centerControls)
+    $uploadForm.Add_Shown($centerControls)
+
+    # 3. Main Reporting Table
+    $vmrTable = New-Object System.Windows.Forms.DataGridView
+    $vmrTable.Dock = [System.Windows.Forms.DockStyle]::Fill
     $vmrTable.ColumnCount = 15
     $vmrTable.RowCount = 6
     $vmrTable.AllowUserToAddRows = $false
     $vmrTable.RowHeadersVisible = $false
+    
+    # FORCE ALL 15 COLUMNS TO BE VISIBLE
     $vmrTable.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
-    $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
+    $vmrTable.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 8, [System.Drawing.FontStyle]::Bold)
     $vmrTable.DefaultCellStyle.Font = New-Object System.Drawing.Font("Arial", 10)
-
-    # Label columns generically (1-15) for now
+    
+    # Label columns generically
     for ($i = 0; $i -lt 15; $i++) {
         $vmrTable.Columns[$i].HeaderText = "Col $($i + 1)"
     }
 
     $uploadForm.Controls.Add($vmrTable)
 
-    # 4. Action Buttons (Bottom Bar)
-    $buttonPanel = New-Object System.Windows.Forms.Panel
-    $buttonPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
-    $buttonPanel.Height = 100
-    $uploadForm.Controls.Add($buttonPanel)
-
-    $submitReportBtn = New-Object System.Windows.Forms.Button
-    $submitReportBtn.Text = "Submit Report"
-    $submitReportBtn.Size = New-Object System.Drawing.Size(150, 45)
-    $submitReportBtn.Location = New-Object System.Drawing.Point(($uploadForm.Width / 2) + 10, 25)
-    $submitReportBtn.Anchor = [System.Windows.Forms.AnchorStyles]::None
-    $submitReportBtn.BackColor = [System.Drawing.Color]::SeaGreen
-    $submitReportBtn.ForeColor = [System.Drawing.Color]::White
-    $submitReportBtn.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-    $buttonPanel.Controls.Add($submitReportBtn)
-
-    $backBtn = New-Object System.Windows.Forms.Button
-    $backBtn.Text = "Back"
-    $backBtn.Size = New-Object System.Drawing.Size(150, 45)
-    $backBtn.Location = New-Object System.Drawing.Point(($uploadForm.Width / 2) - 160, 25)
-    $backBtn.Anchor = [System.Windows.Forms.AnchorStyles]::None
-    $backBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $backBtn.Font = New-Object System.Drawing.Font("Arial", 10)
-    $buttonPanel.Controls.Add($backBtn)
-
-    # Handle Events
+    # Events
     $submitReportBtn.Add_Click({
         [System.Windows.Forms.MessageBox]::Show("Report data captured. Submission logic pending.", "VMR Submission")
     })
